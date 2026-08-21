@@ -124,7 +124,7 @@ set arqnotepad=npp.8.6.9.portable.x64.zip
 
 set downpostman=https://dl.pstmn.io/download/latest/win64
 set arqpostman=postman.exe
-set downinsomnia=https://updates.insomnia.rest/downloads/windows/latest?app=com.insomnia.app&source=website
+set "downinsomnia=https://updates.insomnia.rest/downloads/windows/latest?app=com.insomnia.app&source=website"
 set arqinsomnia=insomnia.exe
 
 set downnetcore=https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.301/dotnet-sdk-10.0.301-win-x64.zip
@@ -448,6 +448,7 @@ IF EXIST "%DEVAPP_HOME%%arqinsomnia%" (
 	PAUSE
 	GOTO :BaixaINSOMNIA
 )
+GOTO :TOP
 
 :ExecMARIADB
 IF EXIST "%MARIADB_HOME%\bin\mysql_install_db.exe" (
@@ -857,7 +858,7 @@ GOTO :TOP
 
 :BaixaINSOMNIA
 cd %~dp0
-wget --dns-servers=8.8.8.8,1.1.1.1 --no-check-certificate %downinsomnia% -O %arqinsomnia%
+wget --dns-servers=8.8.8.8,1.1.1.1 --no-check-certificate "%downinsomnia%" -O %arqinsomnia%
 pause
 GOTO :TOP
 
@@ -1044,7 +1045,6 @@ call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_H
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension grogdunn.netbeans-keybindings ^
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension obrejla.netbeans-light-theme ^
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension marp-team.marp-vscode ^
-:: && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension yzane.markdown-pdf ^
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension kino6.markdown-studio-local ^
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension katsuyuzu.marp-to-editable-pptx
 pause
@@ -1107,7 +1107,6 @@ call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_H
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension jakewilson.vscode-cdnjs ^
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension rexthedev.flutter-preview ^
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension marp-team.marp-vscode ^
-:: && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension yzane.markdown-pdf ^
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension kino6.markdown-studio-local ^
 && call code --extensions-dir "%VSCODE_HOME%\extensions" --user-data-dir "%VSCODE_HOME%\userdir" --install-extension katsuyuzu.marp-to-editable-pptx
 pause
