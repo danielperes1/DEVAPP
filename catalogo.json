@@ -42,7 +42,9 @@
     "PGDATABASE": "postgres",
     "PGUSER": "postgres",
     "PGPORT": "5439",
-    "PGLOCALEDIR": "pgsql/share/locale"
+    "PGLOCALEDIR": "pgsql/share/locale",
+    "PIP_CACHE_DIR": "cache/pip",
+    "PLAYWRIGHT_BROWSERS_PATH": "cache/playwright"
   },
 
   "ferramentas": [
@@ -59,7 +61,10 @@
         "tipo": "zip",
         "extrairEm": "vscode",
         "destino": "vscode",
-        "posInstalacao": ["criar vscode/userdir/User", "copiar settings.json para vscode/userdir/User"]
+        "posInstalacao": [
+          { "acao": "criarPasta", "alvo": "vscode/userdir/User" },
+          { "acao": "copiar", "origem": "settings.json", "alvo": "vscode/userdir/User/settings.json" }
+        ]
       },
       "detectar": "vscode/code.exe",
       "detectarInferido": false,
@@ -169,7 +174,42 @@
     },
     {
       "id": "python",
-      "nome": "Python",
+      "nome": "Python (portatil)",
+      "versao": "3.13.0",
+      "categoria": "Linguagens e SDKs",
+      "download": {
+        "url": "https://www.python.org/ftp/python/3.13.0/python-3.13.0-embed-amd64.zip",
+        "arquivo": "python-3.13.0-embed-amd64.zip"
+      },
+      "instalacao": {
+        "tipo": "zip",
+        "extrairEm": "python",
+        "destino": "python",
+        "limparAntes": true,
+        "posInstalacao": [
+          {
+            "acao": "escrever",
+            "alvo": "python/python313._pth",
+            "conteudo": "python313.zip\n.\nLib\\site-packages\nimport site\n",
+            "porque": "O embeddable vem com 'import site' comentado, e sem isso nao existe pip. Esta e a pegadinha que provavelmente fez o projeto desistir dele."
+          },
+          { "acao": "baixar", "url": "https://bootstrap.pypa.io/get-pip.py", "alvo": "python/get-pip.py" },
+          { "acao": "rodar", "programa": "python/python.exe", "argumentos": "get-pip.py --no-warn-script-location -q", "em": "python" }
+        ]
+      },
+      "detectar": "python/python313._pth",
+      "detectarInferido": false,
+      "executar": null,
+      "env": { "PYTHON_HOME": "python" },
+      "path": ["python", "python/Scripts"],
+      "portatil": true,
+      "alternativaDe": "python-completo",
+      "dependenciasPip": ["markdown", "playwright", "pymupdf", "cssutils"],
+      "notas": "Pacote embeddable: e um zip, nao mexe no registro nem em Adicionar/Remover Programas. NAO traz tkinter, venv nem IDLE. Divide a pasta python/ com o python-completo, entao instalar um substitui o outro."
+    },
+    {
+      "id": "python-completo",
+      "nome": "Python (completo)",
       "versao": "3.13.0",
       "categoria": "Linguagens e SDKs",
       "download": {
@@ -182,21 +222,15 @@
         "limparAntes": true,
         "argumentos": "InstallAllUsers=0 Include_launcher=0 Include_test=0 DefaultJustForMeTargetDir=\"{PYTHON_HOME}\" SimpleInstall=1"
       },
-      "downloadPrevistoNaoUsado": [
-        {
-          "url": "https://bootstrap.pypa.io/get-pip.py",
-          "arquivo": "get-pip.py",
-          "motivo": "A variavel downgetpip existe no start.bat mas nunca e chamada, entao o pip nao chega a ser instalado."
-        }
-      ],
-      "detectar": "python/python.exe",
-      "detectarInferido": true,
+      "detectar": "python/Lib/tkinter/__init__.py",
+      "detectarInferido": false,
       "executar": null,
       "env": { "PYTHON_HOME": "python" },
       "path": ["python", "python/Scripts"],
       "portatil": false,
+      "alternativaDe": "python",
       "dependenciasPip": ["markdown", "playwright", "pymupdf", "cssutils"],
-      "notas": "Instalador real: grava em HKCU e cria entrada em Adicionar/Remover Programas. Os scripts em scripts/ (conversao Markdown->PDF) dependem dos pacotes em dependenciasPip mais 'playwright install chromium', que baixa ~150 MB para %LOCALAPPDATA%/ms-playwright, fora do DEVAPP."
+      "notas": "Instalador oficial: traz tkinter, venv e IDLE, mas grava em HKCU e cria entrada em Adicionar/Remover Programas. Escolha esta versao se as aulas usam interface grafica ou ambientes virtuais. Divide a pasta python/ com o python portatil."
     },
     {
       "id": "dotnet",
@@ -400,7 +434,12 @@
         "url": "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-8.2.5-signed.msi",
         "arquivo": "mongodb-windows-x86_64-8.2.5-signed.msi"
       },
-      "instalacao": { "tipo": "msi-admin", "destino": "mongodb", "limparAntes": true, "posInstalacao": ["criar mongodb/data"] },
+      "instalacao": {
+        "tipo": "msi-admin",
+        "destino": "mongodb",
+        "limparAntes": true,
+        "posInstalacao": [{ "acao": "criarPasta", "alvo": "mongodb/data" }]
+      },
       "detectar": "mongodb/MongoDB/Server/8.2/bin/mongod.exe",
       "detectarInferido": false,
       "executar": "mongodb/MongoDB/Server/8.2/bin/mongod.exe --dbpath \"{MONGODB_HOME}\\data\"",

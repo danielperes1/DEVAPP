@@ -643,6 +643,18 @@
 
   async function instalar(f, cartao) {
     if (emObra) { avisar('Uma instalação já está em andamento', 'Espere ela terminar.', true); return; }
+
+    // A etiqueta laranja no cartão é fácil de não ver na hora de clicar.
+    if (!f.Portatil) {
+      const aviso =
+        f.Nome + ' não é portátil.\n\n' +
+        'A instalação sai da pasta do DEVAPP: mexe no registro do Windows e ' +
+        'cria entrada em Adicionar/Remover Programas. Copiar a pasta para ' +
+        'outro computador não vai levar esta ferramenta junto.\n\n' +
+        'Instalar mesmo assim?';
+      if (!confirm(aviso)) return;
+    }
+
     emObra = f.Id;
     pintarObra(cartao, 'iniciando', -1, f.Nome);
 

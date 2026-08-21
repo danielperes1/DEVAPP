@@ -50,6 +50,10 @@ $ErrorActionPreference = 'Stop'
 # Valores do bloco "ambiente" que sao configuracao, nao caminho de pasta.
 $ValoresNaoCaminho = @('PGDATABASE', 'PGUSER', 'PGPORT')
 
+# Tipos de instalacao que o motor sabe executar. Fica num lugar so para a
+# interface, a validacao do servidor e o instalador nunca discordarem.
+$TiposSuportados = @('zip', 'exe-direto', '7z-sfx', 'msi-admin', 'instalador')
+
 
 function Import-Catalogo {
     $arquivo = Join-Path $PSScriptRoot 'catalogo.json'
@@ -134,12 +138,13 @@ function Get-Status {
         $implementada = $true
         if ($null -ne $f.implementado) { $implementada = [bool]$f.implementado }
 
-        # Por enquanto o instalador so da conta de zip e de executavel avulso.
+        # Fora dos tipos suportados, sobra quem precisa de mais de um
+        # download (o .NET e o SDK do Android), que ainda nao esta feito.
         $instalavel = $false
         $tipo = ''
         if ($null -ne $f.instalacao) {
             $tipo = [string]$f.instalacao.tipo
-            $instalavel = ($tipo -eq 'zip' -or $tipo -eq 'exe-direto')
+            $instalavel = (($TiposSuportados -contains $tipo) -and ($null -eq $f.downloadExtra))
         }
 
         $resultado.Add([pscustomobject]@{
@@ -415,6 +420,98 @@ function Expand-Zip {
 }
 
 
+function Expand-SeteZip {
+    <#
+      O .NET so abre .zip. O PortableGit vem como .7z auto-extraivel, que
+      nenhuma biblioteca nativa le, entao aqui o 7za do projeto e mesmo
+      insubstituivel.
+    #>
+    param([string]$Arquivo, [string]$Pasta)
+
+    $sete = Join-Path $PSScriptRoot 'sevenzip\7za.exe'
+    if (-not (Test-Path -LiteralPath $sete)) { throw '7za.exe nao encontrado na pasta sevenzip.' }
+    if (-not (Test-Path -LiteralPath $Pasta)) { New-Item -ItemType Directory -Path $Pasta -Force | Out-Null }
+
+    # -y responde sim a tudo: sem isso o 7za para esperando confirmacao e o
+    # processo fica pendurado para sempre, sem ninguem para ver a pergunta.
+    & $sete x $Arquivo ('-o' + $Pasta) -y | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw ("7za falhou (codigo {0})." -f $LASTEXITCODE) }
+}
+
+
+function Invoke-PosInstalacao {
+    <#
+      Passos extras do catalogo. Entradas em texto sao tratadas como
+      documentacao e ignoradas; so objetos com "acao" sao executados.
+    #>
+    param($Passos, [string]$Id)
+
+    if ($null -eq $Passos) { return }
+
+    foreach ($passo in $Passos) {
+        if ($passo -is [string]) { continue }
+        if ([string]::IsNullOrWhiteSpace($passo.acao)) { continue }
+
+        switch ($passo.acao) {
+            'criarPasta' {
+                $alvo = Resolve-Caminho $passo.alvo
+                Write-Progresso -Id $Id -Etapa 'ajustando' -Porcento 96 -Detalhe ('criando ' + $passo.alvo)
+                New-Item -ItemType Directory -Path $alvo -Force | Out-Null
+            }
+            'copiar' {
+                $origem = Resolve-Caminho $passo.origem
+                $alvo = Resolve-Caminho $passo.alvo
+                if (Test-Path -LiteralPath $origem) {
+                    Write-Progresso -Id $Id -Etapa 'ajustando' -Porcento 97 -Detalhe ('copiando ' + $passo.origem)
+                    $pastaAlvo = Split-Path -Parent $alvo
+                    if (-not (Test-Path -LiteralPath $pastaAlvo)) { New-Item -ItemType Directory -Path $pastaAlvo -Force | Out-Null }
+                    Copy-Item -LiteralPath $origem -Destination $alvo -Force
+                }
+            }
+            'escrever' {
+                $alvo = Resolve-Caminho $passo.alvo
+                Write-Progresso -Id $Id -Etapa 'ajustando' -Porcento 94 -Detalhe ('escrevendo ' + $passo.alvo)
+                $pastaAlvo = Split-Path -Parent $alvo
+                if (-not (Test-Path -LiteralPath $pastaAlvo)) { New-Item -ItemType Directory -Path $pastaAlvo -Force | Out-Null }
+                # Sem BOM de proposito: arquivos de configuracao como o ._pth
+                # do Python nao toleram os bytes extras no comeco.
+                $semBom = New-Object System.Text.UTF8Encoding($false)
+                [IO.File]::WriteAllText($alvo, [string]$passo.conteudo, $semBom)
+            }
+            'baixar' {
+                $alvo = Resolve-Caminho $passo.alvo
+                Write-Progresso -Id $Id -Etapa 'ajustando' -Porcento 95 -Detalhe ('baixando ' + (Split-Path -Leaf $passo.alvo))
+                $pastaAlvo = Split-Path -Parent $alvo
+                if (-not (Test-Path -LiteralPath $pastaAlvo)) { New-Item -ItemType Directory -Path $pastaAlvo -Force | Out-Null }
+                try   { Get-ArquivoComProgresso -Url $passo.url -Destino $alvo -Id $Id -Rotulo (Split-Path -Leaf $passo.alvo) | Out-Null }
+                catch { Get-ArquivoComWget      -Url $passo.url -Destino $alvo -Id $Id -Rotulo (Split-Path -Leaf $passo.alvo) | Out-Null }
+            }
+            'rodar' {
+                $programa = Resolve-Caminho $passo.programa
+                if (-not (Test-Path -LiteralPath $programa)) { throw ("Passo 'rodar': nao achei {0}" -f $passo.programa) }
+                $ondeRodar = $PSScriptRoot
+                if ($passo.em) { $ondeRodar = Resolve-Caminho $passo.em }
+                $lista = @(Split-Argumentos ([string]$passo.argumentos))
+                Write-Progresso -Id $Id -Etapa 'ajustando' -Porcento 98 -Detalhe ((Split-Path -Leaf $programa) + ' ' + $passo.argumentos)
+                $saida = Start-Process $programa -ArgumentList $lista -WorkingDirectory $ondeRodar -Wait -PassThru -WindowStyle Hidden
+                if ($saida.ExitCode -ne 0) { throw ("Passo 'rodar' terminou com codigo {0}." -f $saida.ExitCode) }
+            }
+            'renomear' {
+                $origem = Resolve-Caminho $passo.origem
+                $alvo = Resolve-Caminho $passo.alvo
+                if (Test-Path -LiteralPath $origem) {
+                    Write-Progresso -Id $Id -Etapa 'ajustando' -Porcento 97 -Detalhe ('renomeando ' + $passo.origem)
+                    Move-Item -LiteralPath $origem -Destination $alvo -Force
+                }
+            }
+            default {
+                Write-Progresso -Id $Id -Etapa 'ajustando' -Detalhe ('passo desconhecido: ' + $passo.acao)
+            }
+        }
+    }
+}
+
+
 function Install-Ferramenta {
     param($Catalogo, [string]$Id)
 
@@ -423,9 +520,12 @@ function Install-Ferramenta {
     if ($null -eq $f.instalacao) { return @{ ok = $false; erro = "$($f.nome) nao tem receita de instalacao." } }
 
     $tipo = $f.instalacao.tipo
-    if ($tipo -ne 'zip' -and $tipo -ne 'exe-direto') {
+    if ($TiposSuportados -notcontains $tipo) {
+        return @{ ok = $false; erro = "Instalacao do tipo '$tipo' ainda nao implementada." }
+    }
+    if ($null -ne $f.downloadExtra) {
         return @{ ok = $false
-                  erro = "Instalacao do tipo '$tipo' ainda nao implementada (por enquanto so zip e exe-direto)." }
+                  erro = "$($f.nome) precisa de mais de um download, o que ainda nao esta implementado." }
     }
 
     $temporario = Join-Path $env:TEMP ('devapp-baixa-' + $Id)
@@ -458,6 +558,31 @@ function Install-Ferramenta {
             New-Item -ItemType Directory -Path $destino -Force | Out-Null
             Copy-Item -LiteralPath $baixado -Destination (Join-Path $destino $f.download.arquivo) -Force
         }
+        elseif ($tipo -eq '7z-sfx') {
+            Write-Progresso -Id $Id -Etapa 'extraindo' -Porcento 85 -Detalhe 'pacote auto-extraivel (7za)'
+            $ondeExtrair = $destino
+            if ($f.instalacao.extrairEm) { $ondeExtrair = Resolve-Caminho $f.instalacao.extrairEm }
+            Expand-SeteZip -Arquivo $baixado -Pasta $ondeExtrair
+        }
+        elseif ($tipo -eq 'msi-admin') {
+            # Instalacao administrativa: o msiexec so desempacota os arquivos
+            # no destino, sem registrar nada no sistema. E o que mantem o
+            # MongoDB portatil apesar de ser distribuido como instalador.
+            Write-Progresso -Id $Id -Etapa 'instalando' -Porcento 85 -Detalhe 'desempacotando o msi'
+            New-Item -ItemType Directory -Path $destino -Force | Out-Null
+            $saida = Start-Process 'msiexec.exe' `
+                -ArgumentList @('/a', "`"$baixado`"", '/qn', "TARGETDIR=`"$destino`"") `
+                -Wait -PassThru -WindowStyle Hidden
+            if ($saida.ExitCode -ne 0) { throw ("msiexec falhou (codigo {0})." -f $saida.ExitCode) }
+        }
+        elseif ($tipo -eq 'instalador') {
+            # Instalador de verdade: nao ha como evitar que mexa fora da pasta.
+            Write-Progresso -Id $Id -Etapa 'instalando' -Porcento 85 -Detalhe 'rodando o instalador oficial'
+            $mapaEnv = Get-Ambiente -Catalogo $Catalogo
+            $listaArgs = @(Split-Argumentos (Expand-Modelo -Texto ([string]$f.instalacao.argumentos) -Mapa $mapaEnv))
+            $saida = Start-Process $baixado -ArgumentList $listaArgs -Wait -PassThru
+            if ($saida.ExitCode -ne 0) { throw ("O instalador terminou com codigo {0}." -f $saida.ExitCode) }
+        }
         else {
             Write-Progresso -Id $Id -Etapa 'extraindo' -Porcento 80 -Detalhe ("{0:N1} MB" -f ($bytes / 1MB))
 
@@ -481,6 +606,8 @@ function Install-Ferramenta {
                 Expand-Zip -Arquivo $baixado -Pasta $PSScriptRoot
             }
         }
+
+        Invoke-PosInstalacao -Passos $f.instalacao.posInstalacao -Id $Id
 
         $instalada = Test-Instalada $f
         if (-not $instalada) {
@@ -748,8 +875,11 @@ function Start-Servidor {
                     $recusa = ''
                     if ($null -eq $alvo)            { $recusa = "Ferramenta desconhecida: $pedido" }
                     elseif ($null -eq $alvo.instalacao) { $recusa = "$($alvo.nome) nao tem receita de instalacao." }
-                    elseif ($alvo.instalacao.tipo -ne 'zip' -and $alvo.instalacao.tipo -ne 'exe-direto') {
+                    elseif ($TiposSuportados -notcontains $alvo.instalacao.tipo) {
                         $recusa = "Instalacao do tipo '$($alvo.instalacao.tipo)' ainda nao implementada."
+                    }
+                    elseif ($null -ne $alvo.downloadExtra) {
+                        $recusa = "$($alvo.nome) precisa de mais de um download, ainda nao implementado."
                     }
 
                     if ($recusa -ne '') {
