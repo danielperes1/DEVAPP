@@ -35,7 +35,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir')]
+    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir', 'instalar')]
     [string]$Acao = 'status',
 
     [string]$Id,
@@ -134,7 +134,17 @@ function Get-Status {
         $implementada = $true
         if ($null -ne $f.implementado) { $implementada = [bool]$f.implementado }
 
+        # Por enquanto o instalador so da conta de zip e de executavel avulso.
+        $instalavel = $false
+        $tipo = ''
+        if ($null -ne $f.instalacao) {
+            $tipo = [string]$f.instalacao.tipo
+            $instalavel = ($tipo -eq 'zip' -or $tipo -eq 'exe-direto')
+        }
+
         $resultado.Add([pscustomobject]@{
+            Instalavel     = $instalavel
+            TipoInstalacao = $tipo
             Id           = $f.id
             Nome         = $f.nome
             Categoria    = $f.categoria
@@ -289,6 +299,210 @@ function Show-Doutor {
 
 
 # ------------------------------------------------------------------
+# Instalacao
+# ------------------------------------------------------------------
+
+$ArquivoProgresso = Join-Path $env:TEMP 'devapp-progresso.json'
+
+function Write-Progresso {
+    param(
+        [string]$Id,
+        [string]$Etapa,
+        [int]$Porcento = -1,
+        [string]$Detalhe = '',
+        [switch]$Fim,
+        [string]$Erro = ''
+    )
+
+    $estado = [pscustomobject]@{
+        id       = $Id
+        etapa    = $Etapa
+        porcento = $Porcento
+        detalhe  = $Detalhe
+        fim      = [bool]$Fim
+        erro     = $Erro
+        quando   = (Get-Date).ToString('s')
+    }
+    try {
+        $estado | ConvertTo-Json -Compress | Set-Content -LiteralPath $ArquivoProgresso -Encoding UTF8
+    }
+    catch { }
+
+    $marca = '  '
+    if ($Porcento -ge 0) { $marca = ('{0,3}%' -f $Porcento) }
+    Write-Host ("  {0} {1} {2}" -f $marca, $Etapa, $Detalhe)
+}
+
+
+function Get-ArquivoComProgresso {
+    <#
+      Download com .NET puro para poder informar bytes recebidos. O
+      Invoke-WebRequest do PowerShell 5.1 guarda a resposta inteira em
+      memoria antes de gravar, o que e ruim para arquivos de centenas de MB.
+    #>
+    param([string]$Url, [string]$Destino, [string]$Id, [string]$Rotulo)
+
+    [Net.ServicePointManager]::SecurityProtocol =
+        [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11
+
+    $pedido = [Net.HttpWebRequest]::Create($Url)
+    $pedido.UserAgent = 'DEVAPP'
+    $pedido.AllowAutoRedirect = $true
+    $pedido.Timeout = 60000
+
+    $resposta = $pedido.GetResponse()
+    $total = $resposta.ContentLength
+    $entrada = $resposta.GetResponseStream()
+    $saida = [IO.File]::Create($Destino)
+
+    $buffer = New-Object byte[] 131072
+    $recebido = 0L
+    $ultimoAviso = -1
+
+    try {
+        while ($true) {
+            $lidos = $entrada.Read($buffer, 0, $buffer.Length)
+            if ($lidos -le 0) { break }
+            $saida.Write($buffer, 0, $lidos)
+            $recebido += $lidos
+
+            if ($total -gt 0) {
+                $pct = [int](($recebido * 100) / $total)
+                if ($pct -ne $ultimoAviso -and ($pct % 5) -eq 0) {
+                    $ultimoAviso = $pct
+                    Write-Progresso -Id $Id -Etapa 'baixando' -Porcento $pct `
+                        -Detalhe ("{0} - {1:N1} de {2:N1} MB" -f $Rotulo, ($recebido / 1MB), ($total / 1MB))
+                }
+            }
+        }
+    }
+    finally {
+        $saida.Close(); $entrada.Close(); $resposta.Close()
+    }
+
+    return $recebido
+}
+
+
+function Get-ArquivoComWget {
+    <#
+      Rede de seguranca. O wget que vem no projeto aceita apontar servidores
+      de DNS, e o start.bat sempre usou 8.8.8.8 e 1.1.1.1 por causa de redes
+      (escolas, empresas) onde o DNS local nao resolve certos hosts. O
+      download nativo usa o resolvedor do sistema e nao tem esse recurso,
+      entao ele fica como primeira opcao e o wget como segunda.
+    #>
+    param([string]$Url, [string]$Destino, [string]$Id, [string]$Rotulo)
+
+    $wget = Join-Path $PSScriptRoot 'wget\wget.exe'
+    if (-not (Test-Path -LiteralPath $wget)) { throw 'wget.exe nao encontrado para a segunda tentativa.' }
+
+    Write-Progresso -Id $Id -Etapa 'baixando' -Porcento 50 -Detalhe ("{0} - segunda tentativa, via wget com DNS publico" -f $Rotulo)
+    & $wget --dns-servers=8.8.8.8,1.1.1.1 -q -O $Destino $Url
+    if ($LASTEXITCODE -ne 0) { throw ("wget tambem falhou (codigo {0})." -f $LASTEXITCODE) }
+    if (-not (Test-Path -LiteralPath $Destino)) { throw 'wget nao gravou o arquivo.' }
+
+    return (Get-Item -LiteralPath $Destino).Length
+}
+
+
+function Expand-Zip {
+    param([string]$Arquivo, [string]$Pasta)
+
+    Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $Pasta)) { New-Item -ItemType Directory -Path $Pasta -Force | Out-Null }
+    [IO.Compression.ZipFile]::ExtractToDirectory($Arquivo, $Pasta)
+}
+
+
+function Install-Ferramenta {
+    param($Catalogo, [string]$Id)
+
+    $f = $Catalogo.ferramentas | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+    if ($null -eq $f)          { return @{ ok = $false; erro = "Ferramenta desconhecida: $Id" } }
+    if ($null -eq $f.instalacao) { return @{ ok = $false; erro = "$($f.nome) nao tem receita de instalacao." } }
+
+    $tipo = $f.instalacao.tipo
+    if ($tipo -ne 'zip' -and $tipo -ne 'exe-direto') {
+        return @{ ok = $false
+                  erro = "Instalacao do tipo '$tipo' ainda nao implementada (por enquanto so zip e exe-direto)." }
+    }
+
+    $temporario = Join-Path $env:TEMP ('devapp-baixa-' + $Id)
+    if (Test-Path -LiteralPath $temporario) { Remove-Item -LiteralPath $temporario -Recurse -Force }
+    New-Item -ItemType Directory -Path $temporario -Force | Out-Null
+
+    try {
+        Write-Progresso -Id $Id -Etapa 'preparando' -Porcento 0 -Detalhe $f.nome
+
+        $destino = Resolve-Caminho $f.instalacao.destino
+        if ($f.instalacao.limparAntes -and (Test-Path -LiteralPath $destino)) {
+            Write-Progresso -Id $Id -Etapa 'limpando' -Porcento 2 -Detalhe ('removendo ' + $f.instalacao.destino)
+            Remove-Item -LiteralPath $destino -Recurse -Force
+        }
+
+        $baixado = Join-Path $temporario $f.download.arquivo
+        Write-Progresso -Id $Id -Etapa 'baixando' -Porcento 3 -Detalhe $f.download.arquivo
+        try {
+            $bytes = Get-ArquivoComProgresso -Url $f.download.url -Destino $baixado -Id $Id -Rotulo $f.download.arquivo
+        }
+        catch {
+            Write-Progresso -Id $Id -Etapa 'baixando' -Porcento 10 -Detalhe ('falhou (' + $_.Exception.Message + ')')
+            $bytes = Get-ArquivoComWget -Url $f.download.url -Destino $baixado -Id $Id -Rotulo $f.download.arquivo
+        }
+        if ($bytes -le 0) { throw "O download veio vazio." }
+
+        if ($tipo -eq 'exe-direto') {
+            # Nao ha o que extrair: o proprio arquivo baixado e o programa.
+            Write-Progresso -Id $Id -Etapa 'instalando' -Porcento 92 -Detalhe 'copiando o executavel'
+            New-Item -ItemType Directory -Path $destino -Force | Out-Null
+            Copy-Item -LiteralPath $baixado -Destination (Join-Path $destino $f.download.arquivo) -Force
+        }
+        else {
+            Write-Progresso -Id $Id -Etapa 'extraindo' -Porcento 80 -Detalhe ("{0:N1} MB" -f ($bytes / 1MB))
+
+            if ($f.instalacao.pastaExtraida) {
+                # O zip traz uma pasta com nome de versao; extrai fora e renomeia.
+                $area = Join-Path $temporario 'conteudo'
+                Expand-Zip -Arquivo $baixado -Pasta $area
+                $origem = Join-Path $area $f.instalacao.pastaExtraida
+                if (-not (Test-Path -LiteralPath $origem)) {
+                    throw ("O zip nao trouxe a pasta esperada '{0}'." -f $f.instalacao.pastaExtraida)
+                }
+                Write-Progresso -Id $Id -Etapa 'instalando' -Porcento 92 -Detalhe ('movendo para ' + $f.instalacao.destino)
+                Move-Item -LiteralPath $origem -Destination $destino -Force
+            }
+            elseif ($f.instalacao.extrairEm) {
+                # O zip nao tem pasta propria: vai direto para dentro do destino.
+                Expand-Zip -Arquivo $baixado -Pasta (Resolve-Caminho $f.instalacao.extrairEm)
+            }
+            else {
+                # O zip ja traz a pasta certa na raiz.
+                Expand-Zip -Arquivo $baixado -Pasta $PSScriptRoot
+            }
+        }
+
+        $instalada = Test-Instalada $f
+        if (-not $instalada) {
+            throw ("Terminou, mas o arquivo de verificacao nao apareceu: {0}" -f $f.detectar)
+        }
+
+        Write-Progresso -Id $Id -Etapa 'pronto' -Porcento 100 -Detalhe $f.nome -Fim
+        return @{ ok = $true; nome = $f.nome }
+    }
+    catch {
+        Write-Progresso -Id $Id -Etapa 'erro' -Porcento -1 -Detalhe $f.nome -Erro $_.Exception.Message -Fim
+        return @{ ok = $false; erro = $_.Exception.Message }
+    }
+    finally {
+        if (Test-Path -LiteralPath $temporario) {
+            Remove-Item -LiteralPath $temporario -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+
+# ------------------------------------------------------------------
 # Ambiente e execucao de ferramentas
 # ------------------------------------------------------------------
 
@@ -370,7 +584,10 @@ function Start-Ferramenta {
     }
 
     $mapa = Get-Ambiente -Catalogo $Catalogo
-    $partes = Split-Argumentos (Expand-Modelo -Texto $f.executar -Mapa $mapa)
+
+    # O @() e obrigatorio: com um unico token o PowerShell devolveria a string
+    # solta em vez da lista, e $partes[0] pegaria a primeira LETRA do caminho.
+    $partes = @(Split-Argumentos (Expand-Modelo -Texto $f.executar -Mapa $mapa))
 
     $programa = Resolve-Caminho $partes[0]
     $argumentos = @()
@@ -465,6 +682,11 @@ function Start-Servidor {
 
     $ambiente = Set-Ambiente -Catalogo (Import-Catalogo)
 
+    # Processo ajudante da instalacao em andamento, se houver. O servidor
+    # nunca baixa nada em maos proprias: se baixasse, ficaria surdo enquanto
+    # isso durasse, e a propria barra de progresso deixaria de responder.
+    $ajudante = $null
+
     $ouvinte = New-Object System.Net.HttpListener
     $ouvinte.Prefixes.Add($base)
     $ouvinte.Start()
@@ -505,6 +727,65 @@ function Start-Servidor {
                         links       = $atual.linksExternos
                     }
                     Send-Texto $contexto 200 'application/json; charset=utf-8' ($pacote | ConvertTo-Json -Depth 6)
+                }
+            }
+            elseif ($caminho -eq '/api/instalar') {
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                elseif ($contexto.Request.HttpMethod -ne 'POST') {
+                    Send-Texto $contexto 405 'text/plain; charset=utf-8' 'use POST'
+                }
+                elseif ($null -ne $ajudante -and -not $ajudante.HasExited) {
+                    Send-Texto $contexto 409 'application/json; charset=utf-8' `
+                        '{"ok":false,"erro":"Ja existe uma instalacao em andamento."}'
+                }
+                else {
+                    $pedido = $contexto.Request.QueryString['id']
+                    $cat = Import-Catalogo
+                    $alvo = $cat.ferramentas | Where-Object { $_.id -eq $pedido } | Select-Object -First 1
+
+                    $recusa = ''
+                    if ($null -eq $alvo)            { $recusa = "Ferramenta desconhecida: $pedido" }
+                    elseif ($null -eq $alvo.instalacao) { $recusa = "$($alvo.nome) nao tem receita de instalacao." }
+                    elseif ($alvo.instalacao.tipo -ne 'zip' -and $alvo.instalacao.tipo -ne 'exe-direto') {
+                        $recusa = "Instalacao do tipo '$($alvo.instalacao.tipo)' ainda nao implementada."
+                    }
+
+                    if ($recusa -ne '') {
+                        Send-Texto $contexto 400 'application/json; charset=utf-8' `
+                            (@{ ok = $false; erro = $recusa } | ConvertTo-Json -Compress)
+                    }
+                    else {
+                        # Apaga o progresso antigo para a pagina nao ler sobra.
+                        if (Test-Path -LiteralPath $ArquivoProgresso) {
+                            Remove-Item -LiteralPath $ArquivoProgresso -Force -ErrorAction SilentlyContinue
+                        }
+                        $script = Join-Path $PSScriptRoot 'devapp.ps1'
+                        $ajudante = Start-Process powershell `
+                            -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script, '-Acao', 'instalar', '-Id', $pedido `
+                            -WindowStyle Hidden -PassThru
+                        Write-Host ("  Instalando {0} (processo {1})" -f $alvo.nome, $ajudante.Id)
+                        Send-Texto $contexto 200 'application/json; charset=utf-8' `
+                            (@{ ok = $true; nome = $alvo.nome } | ConvertTo-Json -Compress)
+                    }
+                }
+            }
+            elseif ($caminho -eq '/api/progresso') {
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                else {
+                    $texto = '{"etapa":"parado"}'
+                    if (Test-Path -LiteralPath $ArquivoProgresso) {
+                        try { $texto = Get-Content -LiteralPath $ArquivoProgresso -Raw -Encoding UTF8 } catch { }
+                    }
+                    # Se o ajudante morreu sem escrever o fim, a pagina ficaria
+                    # esperando para sempre. Avisa que acabou de qualquer jeito.
+                    if ($null -ne $ajudante -and $ajudante.HasExited -and $texto -notmatch '"fim":true') {
+                        $texto = '{"etapa":"erro","fim":true,"erro":"A instalacao terminou sem concluir. Veja a janela do servidor."}'
+                    }
+                    Send-Texto $contexto 200 'application/json; charset=utf-8' $texto
                 }
             }
             elseif ($caminho -eq '/api/executar') {
@@ -594,5 +875,17 @@ switch ($Acao) {
 
     'servir' {
         Start-Servidor -Porta $Porta -NaoAbrir:$NaoAbrir
+    }
+
+    'instalar' {
+        if ([string]::IsNullOrWhiteSpace($Id)) {
+            throw "Informe qual ferramenta instalar. Exemplo: .\devapp.ps1 -Acao instalar -Id putty"
+        }
+        Write-Host ''
+        $r = Install-Ferramenta -Catalogo $catalogo -Id $Id
+        Write-Host ''
+        if ($r.ok) { Write-Host ("  {0} instalado." -f $r.nome) }
+        else       { Write-Host ("  Falhou: {0}" -f $r.erro) }
+        Write-Host ''
     }
 }

@@ -57,6 +57,7 @@
       },
       "instalacao": {
         "tipo": "zip",
+        "extrairEm": "vscode",
         "destino": "vscode",
         "posInstalacao": ["criar vscode/userdir/User", "copiar settings.json para vscode/userdir/User"]
       },
@@ -117,7 +118,7 @@
       "versao": "8.6.9",
       "categoria": "IDE e Editores",
       "download": {
-        "url": "http://download.notepad-plus-plus.org/repository/8.x/8.6.9/npp.8.6.9.portable.x64.zip",
+        "url": "https://github.com/notepad-plus-plus/notepad-plus-plus/releases/download/v8.6.9/npp.8.6.9.portable.x64.zip",
         "arquivo": "npp.8.6.9.portable.x64.zip"
       },
       "instalacao": { "tipo": "zip", "extrairEm": "notepad", "destino": "notepad", "limparAntes": true },
@@ -127,7 +128,7 @@
       "env": { "NOTEPAD_HOME": "notepad" },
       "path": ["notepad"],
       "portatil": true,
-      "notas": "Unico download por HTTP puro, sem TLS."
+      "notas": "O start.bat baixava de download.notepad-plus-plus.org por HTTP puro. Esse host nao resolve mais, nem usando DNS publico, entao a origem passou a ser a release oficial no GitHub, por HTTPS."
     },
     {
       "id": "jdk",
