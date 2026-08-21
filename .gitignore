@@ -7,6 +7,8 @@
 !/sevenzip/
 !/wget/
 !/scripts/
+!/ui/
+!/ui/**
 
 # Permite arquivos específicos
 !.gitattributes
@@ -14,7 +16,5 @@
 !README.md
 !start.bat
 !settings.json
-
-
 !catalogo.json
 !devapp.ps1

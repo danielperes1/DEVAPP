@@ -18,22 +18,31 @@
     path    - mostra as pastas que entrariam no PATH
     json    - devolve o status em JSON (formato que a interface vai consumir)
     doutor  - aponta pendencias e riscos registrados no catalogo
+    servir  - sobe a interface web local e abre o navegador
 
 .PARAMETER Id
     Filtra por uma ferramenta especifica (ex: -Id mariadb).
+
+.PARAMETER Porta
+    Porta do servidor local. Se omitida, procura a primeira livre a partir de 8787.
 
 .EXAMPLE
     .\devapp.ps1
     .\devapp.ps1 -Acao env
     .\devapp.ps1 -Acao status -Id mysql
     .\devapp.ps1 -Acao json > status.json
+    .\devapp.ps1 -Acao servir
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'env', 'path', 'json', 'doutor')]
+    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir')]
     [string]$Acao = 'status',
 
-    [string]$Id
+    [string]$Id,
+
+    [int]$Porta = 0,
+
+    [switch]$NaoAbrir
 )
 
 $ErrorActionPreference = 'Stop'
@@ -276,6 +285,141 @@ function Show-Doutor {
 
 
 # ------------------------------------------------------------------
+# Servidor local da interface web
+# ------------------------------------------------------------------
+
+function Get-PortaLivre {
+    param([int]$Inicio = 8787, [int]$Tentativas = 25)
+
+    for ($p = $Inicio; $p -lt ($Inicio + $Tentativas); $p++) {
+        $teste = New-Object System.Net.HttpListener
+        $teste.Prefixes.Add("http://127.0.0.1:$p/")
+        try {
+            $teste.Start()
+            $teste.Stop()
+            $teste.Close()
+            return $p
+        }
+        catch {
+            $teste.Close()
+        }
+    }
+    throw "Nenhuma porta livre entre $Inicio e $($Inicio + $Tentativas - 1)."
+}
+
+
+function Send-Resposta {
+    param($Contexto, [int]$Codigo, [string]$Tipo, [byte[]]$Corpo)
+
+    $resposta = $Contexto.Response
+    $resposta.StatusCode = $Codigo
+    $resposta.ContentType = $Tipo
+    $resposta.Headers.Add('Cache-Control', 'no-store')
+    $resposta.ContentLength64 = $Corpo.Length
+    $resposta.OutputStream.Write($Corpo, 0, $Corpo.Length)
+    $resposta.OutputStream.Close()
+}
+
+
+function Send-Texto {
+    param($Contexto, [int]$Codigo, [string]$Tipo, [string]$Texto)
+    Send-Resposta $Contexto $Codigo $Tipo ([System.Text.Encoding]::UTF8.GetBytes($Texto))
+}
+
+
+function Start-Servidor {
+    param([int]$Porta, [switch]$NaoAbrir)
+
+    $arquivoUi = Join-Path $PSScriptRoot 'ui\index.html'
+    if (-not (Test-Path -LiteralPath $arquivoUi)) {
+        throw "Interface nao encontrada em: $arquivoUi"
+    }
+
+    if ($Porta -le 0) { $Porta = Get-PortaLivre }
+
+    # Chave gerada a cada execucao. Sem ela a API responde 403, o que impede
+    # qualquer pagina aberta no navegador de conversar com este servidor.
+    $chave = [guid]::NewGuid().ToString('N')
+    $base = "http://127.0.0.1:$Porta/"
+    $endereco = $base + '?t=' + $chave
+
+    $ouvinte = New-Object System.Net.HttpListener
+    $ouvinte.Prefixes.Add($base)
+    $ouvinte.Start()
+
+    Write-Host ''
+    Write-Host "  DEVAPP no ar em $base"
+    Write-Host "  Endereco com chave: $endereco"
+    Write-Host '  Acessivel somente por esta maquina (127.0.0.1).'
+    Write-Host '  Para encerrar, pressione Ctrl+C nesta janela.'
+    Write-Host ''
+
+    if (-not $NaoAbrir) { Start-Process $endereco | Out-Null }
+
+    try {
+        while ($ouvinte.IsListening) {
+
+            $contexto = $ouvinte.GetContext()
+            $caminho = $contexto.Request.Url.AbsolutePath
+            $chaveEnviada = $contexto.Request.QueryString['t']
+
+            if ($caminho -eq '/' -or $caminho -eq '/index.html') {
+                $html = Get-Content -LiteralPath $arquivoUi -Raw -Encoding UTF8
+                Send-Texto $contexto 200 'text/html; charset=utf-8' $html
+            }
+            elseif ($caminho -eq '/api/status') {
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                else {
+                    # Recarrega o catalogo a cada pedido: assim o botao Atualizar
+                    # reflete tanto instalacoes novas quanto edicoes no JSON.
+                    $atual = Import-Catalogo
+                    $pacote = [pscustomobject]@{
+                        raiz        = $PSScriptRoot
+                        geradoEm    = (Get-Date).ToString('s')
+                        ferramentas = (Get-Status -Catalogo $atual)
+                        links       = $atual.linksExternos
+                    }
+                    Send-Texto $contexto 200 'application/json; charset=utf-8' ($pacote | ConvertTo-Json -Depth 6)
+                }
+            }
+            elseif ($caminho -eq '/api/sair') {
+                # Exige POST: assim um simples GET perdido (pre-carregamento do
+                # navegador, historico, link) nao consegue derrubar o servidor.
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                elseif ($contexto.Request.HttpMethod -ne 'POST') {
+                    Send-Texto $contexto 405 'text/plain; charset=utf-8' 'use POST'
+                }
+                else {
+                    # Responde primeiro, so depois desliga: senao a pagina recebe
+                    # uma conexao cortada em vez da confirmacao.
+                    Send-Texto $contexto 200 'application/json; charset=utf-8' '{"ok":true}'
+                    Write-Host '  Encerramento pedido pela interface.'
+                    $ouvinte.Stop()
+                }
+            }
+            elseif ($caminho -eq '/favicon.ico') {
+                Send-Resposta $contexto 204 'image/x-icon' (New-Object byte[] 0)
+            }
+            else {
+                Send-Texto $contexto 404 'text/plain; charset=utf-8' 'nao encontrado'
+            }
+        }
+    }
+    finally {
+        $ouvinte.Stop()
+        $ouvinte.Close()
+        Write-Host ''
+        Write-Host '  Servidor encerrado.'
+        Write-Host ''
+    }
+}
+
+
+# ------------------------------------------------------------------
 # Execucao
 # ------------------------------------------------------------------
 
@@ -309,5 +453,9 @@ switch ($Acao) {
 
     'doutor' {
         Show-Doutor -Catalogo $catalogo -Itens (Get-Status -Catalogo $catalogo)
+    }
+
+    'servir' {
+        Start-Servidor -Porta $Porta -NaoAbrir:$NaoAbrir
     }
 }
