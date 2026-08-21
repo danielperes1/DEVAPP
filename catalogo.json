@@ -62,11 +62,11 @@
       },
       "detectar": "vscode/code.exe",
       "detectarInferido": false,
-      "executar": "vscode/code.exe --extensions-dir \"{VSCODE_HOME}\\extensions\" --user-data-dir \"{VSCODE_HOME}\\userdir\"",
+      "executar": "vscode/bin/code.cmd --extensions-dir \"{VSCODE_HOME}\\extensions\" --user-data-dir \"{VSCODE_HOME}\\userdir\"",
       "env": { "VSCODE_HOME": "vscode" },
       "path": ["vscode"],
       "portatil": true,
-      "notas": "Unica ferramenta com isolamento real de dados de usuario. Extensoes instaladas por categoria."
+      "notas": "Unica ferramenta com isolamento real de dados de usuario. Precisa ser aberta por bin/code.cmd: chamar vscode/code.exe direto nao abre janela nenhuma (sai com codigo 9 ou 0 sem fazer nada), que e exatamente o defeito da opcao 14 do menu antigo."
     },
     {
       "id": "netbeans",

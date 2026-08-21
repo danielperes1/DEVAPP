@@ -157,6 +157,10 @@ function Get-Status {
 function Show-Status {
     param($Itens)
 
+    # Com um unico item o PowerShell entrega o objeto solto em vez da lista,
+    # e ai .Count vem vazio. O @() garante que sempre seja uma colecao.
+    $Itens = @($Itens)
+
     if ($Itens.Count -eq 0) {
         Write-Host "Nenhuma ferramenta corresponde ao filtro."
         return
@@ -285,6 +289,122 @@ function Show-Doutor {
 
 
 # ------------------------------------------------------------------
+# Ambiente e execucao de ferramentas
+# ------------------------------------------------------------------
+
+function Set-Ambiente {
+    <#
+      Aplica as variaveis do catalogo neste processo. Como todo programa que
+      o servidor abrir e filho dele, todos herdam o ambiente do DEVAPP.
+      E o mesmo efeito do start.bat, que e a razao do aviso "SEMPRE EXECUTE
+      OS PROGRAMAS AQUI". A alteracao vive so enquanto o processo existir:
+      nada e gravado no registro nem no ambiente do Windows.
+    #>
+    param($Catalogo)
+
+    $mapa = Get-Ambiente -Catalogo $Catalogo
+    foreach ($nome in $mapa.Keys) {
+        Set-Item -Path ('Env:' + $nome) -Value ([string]$mapa[$nome])
+    }
+
+    $pastas = @(Get-PathDevapp -Catalogo $Catalogo)
+    $env:Path = ($pastas -join ';') + ';' + $env:Path
+
+    return [pscustomobject]@{ Variaveis = $mapa.Count; Pastas = $pastas.Count }
+}
+
+
+function Expand-Modelo {
+    # Troca {JAVA_HOME} e afins pelos caminhos ja resolvidos.
+    param([string]$Texto, $Mapa)
+
+    $saida = $Texto
+    foreach ($nome in $Mapa.Keys) {
+        $saida = $saida.Replace('{' + $nome + '}', [string]$Mapa[$nome])
+    }
+    return $saida
+}
+
+
+function Split-Argumentos {
+    <#
+      Quebra a linha do catalogo em partes, respeitando as aspas. Passar os
+      argumentos como lista (e nao como uma string unica) evita que caminhos
+      com espaco cheguem partidos ao programa.
+    #>
+    param([string]$Linha)
+
+    $partes = New-Object System.Collections.Generic.List[string]
+    $atual = New-Object System.Text.StringBuilder
+    $entreAspas = $false
+
+    foreach ($ch in $Linha.ToCharArray()) {
+        if ($ch -eq '"') { $entreAspas = -not $entreAspas; continue }
+        if ($ch -eq ' ' -and -not $entreAspas) {
+            if ($atual.Length -gt 0) { $partes.Add($atual.ToString()); [void]$atual.Clear() }
+            continue
+        }
+        [void]$atual.Append($ch)
+    }
+    if ($atual.Length -gt 0) { $partes.Add($atual.ToString()) }
+
+    return $partes
+}
+
+
+function Start-Ferramenta {
+    param($Catalogo, [string]$Id)
+
+    $f = $Catalogo.ferramentas | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+    if ($null -eq $f) {
+        return @{ ok = $false; erro = "Ferramenta desconhecida: $Id" }
+    }
+    if ([string]::IsNullOrWhiteSpace($f.executar)) {
+        return @{ ok = $false; erro = "$($f.nome) nao tem comando de execucao no catalogo." }
+    }
+    if ($null -ne $f.servidor) {
+        return @{ ok = $false; erro = "$($f.nome) e um servidor e precisa de janela propria; ainda nao suportado por aqui." }
+    }
+    if (-not (Test-Instalada $f)) {
+        return @{ ok = $false; erro = "$($f.nome) nao esta instalado." }
+    }
+
+    $mapa = Get-Ambiente -Catalogo $Catalogo
+    $partes = Split-Argumentos (Expand-Modelo -Texto $f.executar -Mapa $mapa)
+
+    $programa = Resolve-Caminho $partes[0]
+    $argumentos = @()
+    if ($partes.Count -gt 1) { $argumentos = $partes[1..($partes.Count - 1)] }
+
+    if (-not (Test-Path -LiteralPath $programa)) {
+        return @{ ok = $false; erro = "Executavel nao encontrado: $programa" }
+    }
+
+    # Arquivos .cmd e .bat nao sao executaveis para o Windows: precisam do
+    # interpretador. E o caso do VS Code, que so abre por bin\code.cmd.
+    $viaCmd = $programa -match '\.(cmd|bat)$'
+
+    try {
+        if ($viaCmd) {
+            $lista = @('/c', $programa) + $argumentos
+            Start-Process -FilePath 'cmd.exe' -ArgumentList $lista -WorkingDirectory $PSScriptRoot -WindowStyle Hidden | Out-Null
+        }
+        elseif ($argumentos.Count -gt 0) {
+            Start-Process -FilePath $programa -ArgumentList $argumentos -WorkingDirectory $PSScriptRoot | Out-Null
+        }
+        else {
+            Start-Process -FilePath $programa -WorkingDirectory $PSScriptRoot | Out-Null
+        }
+        Write-Host ("  Abrindo {0}" -f $f.nome)
+        return @{ ok = $true; nome = $f.nome }
+    }
+    catch {
+        return @{ ok = $false; erro = $_.Exception.Message }
+    }
+}
+
+
+# ------------------------------------------------------------------
 # Servidor local da interface web
 # ------------------------------------------------------------------
 
@@ -343,11 +463,14 @@ function Start-Servidor {
     $base = "http://127.0.0.1:$Porta/"
     $endereco = $base + '?t=' + $chave
 
+    $ambiente = Set-Ambiente -Catalogo (Import-Catalogo)
+
     $ouvinte = New-Object System.Net.HttpListener
     $ouvinte.Prefixes.Add($base)
     $ouvinte.Start()
 
     Write-Host ''
+    Write-Host ("  Ambiente aplicado: {0} variaveis, {1} pastas no PATH." -f $ambiente.Variaveis, $ambiente.Pastas)
     Write-Host "  DEVAPP no ar em $base"
     Write-Host "  Endereco com chave: $endereco"
     Write-Host '  Acessivel somente por esta maquina (127.0.0.1).'
@@ -382,6 +505,20 @@ function Start-Servidor {
                         links       = $atual.linksExternos
                     }
                     Send-Texto $contexto 200 'application/json; charset=utf-8' ($pacote | ConvertTo-Json -Depth 6)
+                }
+            }
+            elseif ($caminho -eq '/api/executar') {
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                elseif ($contexto.Request.HttpMethod -ne 'POST') {
+                    Send-Texto $contexto 405 'text/plain; charset=utf-8' 'use POST'
+                }
+                else {
+                    $resultado = Start-Ferramenta -Catalogo (Import-Catalogo) -Id $contexto.Request.QueryString['id']
+                    $codigo = 400
+                    if ($resultado.ok) { $codigo = 200 }
+                    Send-Texto $contexto $codigo 'application/json; charset=utf-8' ($resultado | ConvertTo-Json -Compress)
                 }
             }
             elseif ($caminho -eq '/api/sair') {
