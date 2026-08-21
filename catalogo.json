@@ -1,0 +1,547 @@
+{
+  "_meta": {
+    "versao": 1,
+    "descricao": "Catalogo de ferramentas do DEVAPP, extraido de start.bat (commit 3a0a020).",
+    "raiz": "Todos os caminhos sao relativos a pasta do DEVAPP (onde fica o start.bat).",
+    "convencoes": {
+      "detectarInferido": "true = o start.bat nao tinha checagem IF EXIST para esta ferramenta; o caminho foi deduzido e precisa ser conferido.",
+      "portatil": "false = a instalacao mexe fora da pasta do DEVAPP (registro, Adicionar/Remover Programas, etc).",
+      "perfilUsuario": "Caminhos fora do DEVAPP que a ferramenta escreve AO SER USADA. Deduzido do comportamento padrao de cada ferramenta; conferir."
+    }
+  },
+
+  "ambiente": {
+    "DEVAPP_HOME": ".",
+    "ANDROID_STUDIO_HOME": "android/android-studio",
+    "ANDROID_HOME": "android/sdk",
+    "ANDROID_SDK_ROOT": "android/sdk",
+    "FLUTTER_HOME": "flutter",
+    "JAVA_HOME": "jdk",
+    "MAVEN_HOME": "maven",
+    "NODE_HOME": "node",
+    "VSCODE_HOME": "vscode",
+    "NETBEANS_HOME": "netbeans",
+    "DBEAVER_HOME": "dbeaver",
+    "MARIADB_HOME": "mariadb",
+    "MYSQL_HOME": "mysql",
+    "WGET_HOME": "wget",
+    "SEVENZIP_HOME": "sevenzip",
+    "NOTEPAD_HOME": "notepad",
+    "GIT_HOME": "git",
+    "PYTHON_HOME": "python",
+    "NEO4J_HOME": "neo4j",
+    "MONGODB_HOME": "mongodb",
+    "MONGOSH_HOME": "mongosh",
+    "PUTTY_HOME": "putty",
+    "POSTGRES_HOME": "pgsql",
+    "GRADLE_HOME": "gradle",
+    "DOTNET_HOME": "dotnet",
+    "DOTNET_ROOT": "dotnet",
+    "SCRIPTSDIR": "scripts",
+    "PGDATA": "pgsql/data",
+    "PGDATABASE": "postgres",
+    "PGUSER": "postgres",
+    "PGPORT": "5439",
+    "PGLOCALEDIR": "pgsql/share/locale"
+  },
+
+  "ferramentas": [
+    {
+      "id": "vscode",
+      "nome": "Visual Studio Code",
+      "versao": "1.132.0",
+      "categoria": "IDE e Editores",
+      "download": {
+        "url": "https://vscode.download.prss.microsoft.com/dbazure/download/stable/df53daabb18cd157bdb08c7f01c34df936cf12f4/VSCode-win32-x64-1.132.0.zip",
+        "arquivo": "VSCode-win32-x64-1.132.0.zip"
+      },
+      "instalacao": {
+        "tipo": "zip",
+        "destino": "vscode",
+        "posInstalacao": ["criar vscode/userdir/User", "copiar settings.json para vscode/userdir/User"]
+      },
+      "detectar": "vscode/code.exe",
+      "detectarInferido": false,
+      "executar": "vscode/code.exe --extensions-dir \"{VSCODE_HOME}\\extensions\" --user-data-dir \"{VSCODE_HOME}\\userdir\"",
+      "env": { "VSCODE_HOME": "vscode" },
+      "path": ["vscode"],
+      "portatil": true,
+      "notas": "Unica ferramenta com isolamento real de dados de usuario. Extensoes instaladas por categoria."
+    },
+    {
+      "id": "netbeans",
+      "nome": "Apache NetBeans",
+      "versao": "27",
+      "categoria": "IDE e Editores",
+      "download": {
+        "url": "https://dlcdn.apache.org/netbeans/netbeans/27/netbeans-27-bin.zip",
+        "arquivo": "netbeans-27-bin.zip"
+      },
+      "instalacao": { "tipo": "zip", "destino": "netbeans", "limparAntes": true },
+      "detectar": "netbeans/bin/netbeans64.exe",
+      "detectarInferido": false,
+      "executar": "netbeans/bin/netbeans64.exe --jdkhome \"{JAVA_HOME}\"",
+      "env": { "NETBEANS_HOME": "netbeans" },
+      "path": [],
+      "portatil": true,
+      "perfilUsuario": ["%APPDATA%/NetBeans"],
+      "notas": "Nao recebe --userdir, entao grava configuracao no perfil do usuario."
+    },
+    {
+      "id": "android-studio",
+      "nome": "Android Studio",
+      "versao": "2025.2.3.9",
+      "categoria": "IDE e Editores",
+      "download": {
+        "url": "https://edgedl.me.gvt1.com/android/studio/ide-zips/2025.2.3.9/android-studio-2025.2.3.9-windows.zip",
+        "arquivo": "android-studio-2025.2.3.9-windows.zip"
+      },
+      "instalacao": {
+        "tipo": "zip",
+        "extrairEm": "android",
+        "pastaExtraida": "android-studio",
+        "destino": "android/android-studio"
+      },
+      "detectar": "android/android-studio/bin/studio64.exe",
+      "detectarInferido": false,
+      "executar": "android/android-studio/bin/studio64.exe",
+      "env": { "ANDROID_STUDIO_HOME": "android/android-studio" },
+      "path": [],
+      "portatil": true,
+      "perfilUsuario": ["%APPDATA%/Google/AndroidStudio*", "%USERPROFILE%/.android"],
+      "notas": "BUG #3 do start.bat: a rotina faz cd para pasta inexistente e extrai um nivel ACIMA do DEVAPP. Ao limpar antes de reinstalar, apagar SOMENTE android/android-studio: android/sdk e irmao e nao pode ir junto."
+    },
+    {
+      "id": "notepad",
+      "nome": "Notepad++",
+      "versao": "8.6.9",
+      "categoria": "IDE e Editores",
+      "download": {
+        "url": "http://download.notepad-plus-plus.org/repository/8.x/8.6.9/npp.8.6.9.portable.x64.zip",
+        "arquivo": "npp.8.6.9.portable.x64.zip"
+      },
+      "instalacao": { "tipo": "zip", "extrairEm": "notepad", "destino": "notepad", "limparAntes": true },
+      "detectar": "notepad/notepad++.exe",
+      "detectarInferido": true,
+      "executar": "notepad/notepad++.exe",
+      "env": { "NOTEPAD_HOME": "notepad" },
+      "path": ["notepad"],
+      "portatil": true,
+      "notas": "Unico download por HTTP puro, sem TLS."
+    },
+    {
+      "id": "jdk",
+      "nome": "OpenJDK",
+      "versao": "21.0.2",
+      "categoria": "Linguagens e SDKs",
+      "download": {
+        "url": "https://download.java.net/java/GA/jdk21.0.2/f2283984656d49d69e91c558476027ac/13/GPL/openjdk-21.0.2_windows-x64_bin.zip",
+        "arquivo": "openjdk-21.0.2_windows-x64_bin.zip"
+      },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "jdk-21.0.2", "destino": "jdk", "limparAntes": true },
+      "detectar": "jdk/bin/java.exe",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "JAVA_HOME": "jdk" },
+      "path": ["jdk/bin"],
+      "portatil": true,
+      "notas": "No menu antigo a opcao 6 instalava JDK e em seguida Maven."
+    },
+    {
+      "id": "node",
+      "nome": "Node.js",
+      "versao": "24.18.0",
+      "categoria": "Linguagens e SDKs",
+      "download": {
+        "url": "https://nodejs.org/dist/v24.18.0/node-v24.18.0-win-x64.zip",
+        "arquivo": "node-v24.18.0-win-x64.zip"
+      },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "node-v24.18.0-win-x64", "destino": "node", "limparAntes": true },
+      "detectar": "node/node.exe",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "NODE_HOME": "node" },
+      "path": ["node"],
+      "portatil": true,
+      "perfilUsuario": ["%APPDATA%/npm", "%LOCALAPPDATA%/npm-cache"],
+      "notas": "No menu antigo a opcao 14 instalava Node e em seguida Git."
+    },
+    {
+      "id": "python",
+      "nome": "Python",
+      "versao": "3.13.0",
+      "categoria": "Linguagens e SDKs",
+      "download": {
+        "url": "https://www.python.org/ftp/python/3.13.0/python-3.13.0-amd64.exe",
+        "arquivo": "python-3.13.0-amd64.exe"
+      },
+      "instalacao": {
+        "tipo": "instalador",
+        "destino": "python",
+        "limparAntes": true,
+        "argumentos": "InstallAllUsers=0 Include_launcher=0 Include_test=0 DefaultJustForMeTargetDir=\"{PYTHON_HOME}\" SimpleInstall=1"
+      },
+      "downloadPrevistoNaoUsado": [
+        {
+          "url": "https://bootstrap.pypa.io/get-pip.py",
+          "arquivo": "get-pip.py",
+          "motivo": "A variavel downgetpip existe no start.bat mas nunca e chamada, entao o pip nao chega a ser instalado."
+        }
+      ],
+      "detectar": "python/python.exe",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "PYTHON_HOME": "python" },
+      "path": ["python", "python/Scripts"],
+      "portatil": false,
+      "dependenciasPip": ["markdown", "playwright", "pymupdf", "cssutils"],
+      "notas": "Instalador real: grava em HKCU e cria entrada em Adicionar/Remover Programas. Os scripts em scripts/ (conversao Markdown->PDF) dependem dos pacotes em dependenciasPip mais 'playwright install chromium', que baixa ~150 MB para %LOCALAPPDATA%/ms-playwright, fora do DEVAPP."
+    },
+    {
+      "id": "dotnet",
+      "nome": ".NET SDK + ASP.NET Core Runtime",
+      "versao": "10.0.301 / 10.0.9",
+      "categoria": "Linguagens e SDKs",
+      "download": {
+        "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.301/dotnet-sdk-10.0.301-win-x64.zip",
+        "arquivo": "dotnet-sdk-10.0.301-win-x64.zip"
+      },
+      "downloadExtra": [
+        {
+          "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/10.0.9/aspnetcore-runtime-10.0.9-win-x64.zip",
+          "arquivo": "aspnetcore-runtime-10.0.9-win-x64.zip"
+        }
+      ],
+      "instalacao": { "tipo": "zip", "extrairEm": "dotnet", "destino": "dotnet", "limparAntes": true },
+      "detectar": "dotnet/dotnet.exe",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "DOTNET_HOME": "dotnet", "DOTNET_ROOT": "dotnet" },
+      "path": ["dotnet"],
+      "portatil": true,
+      "perfilUsuario": ["%USERPROFILE%/.dotnet", "%USERPROFILE%/.nuget/packages"]
+    },
+    {
+      "id": "flutter",
+      "nome": "Flutter SDK",
+      "versao": "3.38.9",
+      "categoria": "Linguagens e SDKs",
+      "download": {
+        "url": "https://storage.googleapis.com/flutter_infra_release/releases/stable/windows/flutter_windows_3.38.9-stable.zip",
+        "arquivo": "flutter_windows_3.38.9-stable.zip"
+      },
+      "instalacao": { "tipo": "zip", "destino": "flutter", "limparAntes": true },
+      "detectar": "flutter/bin/flutter.bat",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "FLUTTER_HOME": "flutter" },
+      "path": ["flutter/bin"],
+      "portatil": true,
+      "perfilUsuario": ["%LOCALAPPDATA%/Pub/Cache", "%USERPROFILE%/.flutter"]
+    },
+    {
+      "id": "android-sdk",
+      "nome": "Android SDK (linha de comando)",
+      "versao": "cmdline-tools 14742923",
+      "categoria": "Linguagens e SDKs",
+      "download": {
+        "url": "https://dl.google.com/android/repository/commandlinetools-win-14742923_latest.zip",
+        "arquivo": "commandlinetools-win-14742923_latest.zip"
+      },
+      "downloadExtra": [
+        {
+          "url": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
+          "arquivo": "platform-tools-latest-windows.zip"
+        }
+      ],
+      "instalacao": {
+        "tipo": "zip",
+        "extrairEm": "android/sdk",
+        "posInstalacao": [
+          "extrair commandlinetools em android/sdk/cmdline-tools",
+          "renomear android/sdk/cmdline-tools/cmdline-tools para latest",
+          "extrair platform-tools em android/sdk"
+        ]
+      },
+      "detectar": "android/sdk/platform-tools/adb.exe",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "ANDROID_HOME": "android/sdk", "ANDROID_SDK_ROOT": "android/sdk" },
+      "path": [
+        "android/sdk/platform-tools",
+        "android/sdk/emulator",
+        "android/sdk/tools",
+        "android/sdk/cmdline-tools/latest/bin"
+      ],
+      "portatil": true,
+      "perfilUsuario": ["%USERPROFILE%/.android"]
+    },
+    {
+      "id": "maven",
+      "nome": "Apache Maven",
+      "versao": "3.9.16",
+      "categoria": "Build",
+      "download": {
+        "url": "https://dlcdn.apache.org/maven/maven-3/3.9.16/binaries/apache-maven-3.9.16-bin.zip",
+        "arquivo": "apache-maven-3.9.16-bin.zip"
+      },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "apache-maven-3.9.16", "destino": "maven", "limparAntes": true },
+      "detectar": "maven/bin/mvn.cmd",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "MAVEN_HOME": "maven" },
+      "path": ["maven/bin"],
+      "portatil": true,
+      "perfilUsuario": ["%USERPROFILE%/.m2"]
+    },
+    {
+      "id": "gradle",
+      "nome": "Gradle",
+      "versao": "8.12",
+      "categoria": "Build",
+      "download": {
+        "url": "https://services.gradle.org/distributions/gradle-8.12-bin.zip",
+        "arquivo": "gradle-8.12-bin.zip"
+      },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "gradle-8.12", "destino": "gradle", "limparAntes": true },
+      "detectar": "gradle/bin/gradle.bat",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "GRADLE_HOME": "gradle" },
+      "path": ["gradle/bin"],
+      "portatil": true,
+      "perfilUsuario": ["%USERPROFILE%/.gradle"]
+    },
+    {
+      "id": "git",
+      "nome": "Git (PortableGit)",
+      "versao": "2.41.0.3",
+      "categoria": "Controle de versao",
+      "download": {
+        "url": "https://github.com/git-for-windows/git/releases/download/v2.41.0.windows.3/PortableGit-2.41.0.3-64-bit.7z.exe",
+        "arquivo": "PortableGit-2.41.0.3-64-bit.7z.exe"
+      },
+      "instalacao": { "tipo": "7z-sfx", "extrairEm": "git", "destino": "git", "limparAntes": true },
+      "detectar": "git/bin/git.exe",
+      "detectarInferido": true,
+      "executar": null,
+      "env": { "GIT_HOME": "git" },
+      "path": ["git/bin"],
+      "portatil": true
+    },
+    {
+      "id": "mysql",
+      "nome": "MySQL Server",
+      "versao": "8.0.39",
+      "categoria": "Bancos de dados",
+      "download": {
+        "url": "https://dev.mysql.com/get/Downloads/MySQL-8.0/mysql-8.0.39-winx64.zip",
+        "arquivo": "mysql-8.0.39-winx64.zip"
+      },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "mysql-8.0.39-winx64", "destino": "mysql", "limparAntes": true },
+      "detectar": "mysql/bin/mysqld.exe",
+      "detectarInferido": false,
+      "executar": "mysql/bin/mysqld --standalone --console --datadir=\"{MYSQL_HOME}\\data\" --port=3360",
+      "primeiraExecucao": "mysql/bin/mysqld --initialize-insecure",
+      "servidor": { "porta": 3360, "usuario": "root", "senha": "" },
+      "env": { "MYSQL_HOME": "mysql" },
+      "path": [],
+      "portatil": true,
+      "notas": "Divide a porta 3360 com o MariaDB: os dois nao podem rodar ao mesmo tempo."
+    },
+    {
+      "id": "mariadb",
+      "nome": "MariaDB",
+      "versao": "11.4.2",
+      "categoria": "Bancos de dados",
+      "download": {
+        "url": "https://dlm.mariadb.com/3829199/MariaDB/mariadb-11.4.2/winx64-packages/mariadb-11.4.2-winx64.zip",
+        "arquivo": "mariadb-11.4.2-winx64.zip"
+      },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "mariadb-11.4.2-winx64", "destino": "mariadb", "limparAntes": true },
+      "detectar": "mariadb/bin/mysql_install_db.exe",
+      "detectarInferido": false,
+      "executar": "mariadb/bin/mysqld --port=3360 --console",
+      "primeiraExecucao": "mariadb/bin/mysql_install_db --password=SECRET",
+      "servidor": { "porta": 3360, "usuario": "root", "senha": "SECRET" },
+      "env": { "MARIADB_HOME": "mariadb" },
+      "path": [],
+      "portatil": true,
+      "notas": "Divide a porta 3360 com o MySQL."
+    },
+    {
+      "id": "postgres",
+      "nome": "PostgreSQL",
+      "versao": "15.7-2",
+      "categoria": "Bancos de dados",
+      "download": {
+        "url": "https://get.enterprisedb.com/postgresql/postgresql-15.7-2-windows-x64-binaries.zip",
+        "arquivo": "postgresql-15.7-2-windows-x64-binaries.zip"
+      },
+      "instalacao": { "tipo": "zip", "destino": "pgsql", "limparAntes": true },
+      "detectar": "pgsql/bin/initdb.exe",
+      "detectarInferido": false,
+      "executar": "pgsql/bin/pg_ctl -D \"{PGDATA}\" -l \"{POSTGRES_HOME}\\logfile\" start",
+      "primeiraExecucao": "pgsql/bin/initdb -U postgres -A trust",
+      "parar": "pgsql/bin/pg_ctl -D \"{PGDATA}\" stop",
+      "servidor": { "porta": 5439, "usuario": "postgres", "senha": "" },
+      "env": { "POSTGRES_HOME": "pgsql", "PGDATA": "pgsql/data", "PGPORT": "5439" },
+      "path": ["pgsql/bin"],
+      "portatil": true,
+      "notas": "O start.bat roda 'taskkill /F /IM postgres.exe' antes de subir, o que mata qualquer PostgreSQL da maquina, inclusive um servico do sistema. Nao replicar isso."
+    },
+    {
+      "id": "mongodb",
+      "nome": "MongoDB Server",
+      "versao": "8.2.5",
+      "categoria": "Bancos de dados",
+      "download": {
+        "url": "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-8.2.5-signed.msi",
+        "arquivo": "mongodb-windows-x86_64-8.2.5-signed.msi"
+      },
+      "instalacao": { "tipo": "msi-admin", "destino": "mongodb", "limparAntes": true, "posInstalacao": ["criar mongodb/data"] },
+      "detectar": "mongodb/MongoDB/Server/8.2/bin/mongod.exe",
+      "detectarInferido": false,
+      "executar": "mongodb/MongoDB/Server/8.2/bin/mongod.exe --dbpath \"{MONGODB_HOME}\\data\"",
+      "servidor": { "porta": 27017 },
+      "env": { "MONGODB_HOME": "mongodb" },
+      "path": ["mongodb/MongoDB/Server/8.2/bin", "mongodb/System64"],
+      "portatil": true,
+      "notas": "Usa 'msiexec /a' (instalacao administrativa): so extrai os arquivos, nao registra no sistema. O caminho de deteccao tem a versao 8.2 fixa e precisa mudar junto com a versao."
+    },
+    {
+      "id": "neo4j",
+      "nome": "Neo4j Community",
+      "versao": "5.17.0",
+      "categoria": "Bancos de dados",
+      "download": {
+        "url": "https://neo4j.com/artifact.php?name=neo4j-community-5.17.0-windows.zip",
+        "arquivo": "neo4j-community-5.17.0-windows.zip"
+      },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "neo4j-community-5.17.0", "destino": "neo4j", "limparAntes": true },
+      "detectar": "neo4j/bin/neo4j.bat",
+      "detectarInferido": false,
+      "executar": "neo4j/bin/neo4j.bat console",
+      "servidor": { "porta": 7474, "usuario": "neo4j", "senha": "neo4j", "url": "http://localhost:7474" },
+      "env": { "NEO4J_HOME": "neo4j" },
+      "path": ["neo4j"],
+      "portatil": true
+    },
+    {
+      "id": "dbeaver",
+      "nome": "DBeaver CE",
+      "versao": "latest",
+      "categoria": "Clientes de banco",
+      "download": {
+        "url": "https://dbeaver.io/files/dbeaver-ce-latest-win32.win32.x86_64.zip",
+        "arquivo": "dbeaver-ce-latest-win32.win32.x86_64.zip"
+      },
+      "instalacao": { "tipo": "zip", "destino": "dbeaver" },
+      "detectar": "dbeaver/dbeaver.exe",
+      "detectarInferido": false,
+      "executar": "dbeaver/dbeaver.exe",
+      "env": { "DBEAVER_HOME": "dbeaver" },
+      "path": [],
+      "portatil": true,
+      "perfilUsuario": ["%APPDATA%/DBeaverData"],
+      "notas": "URL 'latest': a versao muda sem aviso. A rotina antiga nao limpava a pasta antes, o que trava o 7za num prompt de sobrescrita."
+    },
+    {
+      "id": "mongosh",
+      "nome": "MongoDB Shell",
+      "versao": "2.6.0",
+      "categoria": "Clientes de banco",
+      "download": {
+        "url": "https://downloads.mongodb.com/compass/mongosh-2.6.0-win32-x64.zip",
+        "arquivo": "mongosh-2.6.0-win32-x64.zip"
+      },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "mongosh-2.6.0-win32-x64", "destino": "mongosh", "limparAntes": true },
+      "detectar": "mongosh/bin/mongosh.exe",
+      "detectarInferido": false,
+      "executar": "mongosh/bin/mongosh.exe",
+      "env": { "MONGOSH_HOME": "mongosh" },
+      "path": ["mongosh"],
+      "portatil": true
+    },
+    {
+      "id": "postman",
+      "nome": "Postman",
+      "versao": "latest",
+      "categoria": "API e Rede",
+      "download": { "url": "https://dl.pstmn.io/download/latest/win64", "arquivo": "postman.exe" },
+      "instalacao": { "tipo": "instalador", "destino": "." },
+      "detectar": "postman.exe",
+      "detectarInferido": false,
+      "executar": "postman.exe",
+      "env": {},
+      "path": [],
+      "portatil": false,
+      "perfilUsuario": ["%LOCALAPPDATA%/Postman"],
+      "notas": "O .exe baixado e o INSTALADOR, nao o app. O menu antigo o executava de novo a cada vez; ele se instala sozinho no perfil do usuario."
+    },
+    {
+      "id": "insomnia",
+      "nome": "Insomnia",
+      "versao": "latest",
+      "categoria": "API e Rede",
+      "download": {
+        "url": "https://updates.insomnia.rest/downloads/windows/latest?app=com.insomnia.app&source=website",
+        "arquivo": "insomnia.exe"
+      },
+      "instalacao": { "tipo": "instalador", "destino": "." },
+      "detectar": "insomnia.exe",
+      "detectarInferido": false,
+      "executar": "insomnia.exe",
+      "env": {},
+      "path": [],
+      "portatil": false,
+      "notas": "Mesma situacao do Postman: o .exe e o instalador. A URL tem '&', que no batch exigia aspas (bug #9, ja corrigido)."
+    },
+    {
+      "id": "putty",
+      "nome": "PuTTY",
+      "versao": "latest",
+      "categoria": "API e Rede",
+      "download": { "url": "https://the.earth.li/~sgtatham/putty/latest/w64/putty.exe", "arquivo": "putty.exe" },
+      "instalacao": { "tipo": "exe-direto", "destino": "putty", "limparAntes": true },
+      "detectar": "putty/putty.exe",
+      "detectarInferido": false,
+      "executar": "putty/putty.exe",
+      "env": { "PUTTY_HOME": "putty" },
+      "path": ["putty"],
+      "portatil": true
+    },
+    {
+      "id": "yed",
+      "nome": "yEd Graph Editor",
+      "versao": "3.23.2",
+      "categoria": "Diagramas",
+      "download": { "url": "https://www.yworks.com/resources/yed/demo/yEd-3.23.2.zip", "arquivo": "yEd-3.23.2.zip" },
+      "instalacao": { "tipo": "zip", "pastaExtraida": "yEd-3.23.2", "destino": "yed" },
+      "detectar": null,
+      "detectarInferido": true,
+      "executar": null,
+      "env": {},
+      "path": [],
+      "portatil": true,
+      "implementado": false,
+      "notas": "As variaveis downyed/arqyed/nomeyed existem no start.bat mas NAO ha rotina de instalacao nem de execucao. Hoje o yEd so aparece como link online no menu Auxiliares."
+    }
+  ],
+
+  "linksExternos": [
+    { "nome": "Creately", "url": "https://app.creately.com/d/start/dashboard", "categoria": "Diagramas" },
+    { "nome": "DB Diagram", "url": "https://dbdiagram.io/home", "categoria": "Diagramas" },
+    { "nome": "Draw.io", "url": "https://app.diagrams.net/", "categoria": "Diagramas" },
+    { "nome": "Excalidraw", "url": "https://excalidraw.com/", "categoria": "Diagramas" },
+    { "nome": "Mermaid", "url": "https://www.mermaidchart.com/play", "categoria": "Diagramas" },
+    { "nome": "SmartDraw", "url": "https://www.smartdraw.com/entity-relationship-diagram/er-diagram-tool.htm", "categoria": "Diagramas" },
+    { "nome": "Visual Paradigm Online", "url": "https://online.visual-paradigm.com/pt/diagrams/solutions/free-visual-paradigm-online/", "categoria": "Diagramas" },
+    { "nome": "yEd Live", "url": "https://www.yworks.com/yed-live/", "categoria": "Diagramas" }
+  ],
+
+  "ferramentasEmbutidas": [
+    { "id": "wget", "nome": "GNU Wget", "pasta": "wget", "notas": "Versionado no repositorio. Usado para todos os downloads." },
+    { "id": "sevenzip", "nome": "7-Zip (7za)", "pasta": "sevenzip", "notas": "Versionado no repositorio. Usado para todas as extracoes." }
+  ]
+}
