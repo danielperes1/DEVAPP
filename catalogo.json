@@ -43,8 +43,24 @@
     "PGUSER": "postgres",
     "PGPORT": "5439",
     "PGLOCALEDIR": "pgsql/share/locale",
+
     "PIP_CACHE_DIR": "cache/pip",
-    "PLAYWRIGHT_BROWSERS_PATH": "cache/playwright"
+    "PLAYWRIGHT_BROWSERS_PATH": "cache/playwright",
+    "GRADLE_USER_HOME": "cache/gradle",
+    "PUB_CACHE": "cache/pub",
+    "NUGET_PACKAGES": "cache/nuget",
+    "DOTNET_CLI_HOME": "cache/dotnet",
+    "NPM_CONFIG_PREFIX": "cache/npm",
+    "NPM_CONFIG_CACHE": "cache/npm-cache",
+    "ANDROID_USER_HOME": "cache/android",
+    "ANDROID_EMULATOR_HOME": "cache/android",
+    "ANDROID_AVD_HOME": "cache/android/avd",
+    "MAVEN_REPO": "cache/maven"
+  },
+
+  "_ambienteTexto": "Valores que nao sao caminho: sao montados depois, trocando {VAR} pelos caminhos ja resolvidos acima.",
+  "ambienteTexto": {
+    "MAVEN_ARGS": "-Dmaven.repo.local={MAVEN_REPO}"
   },
 
   "ferramentas": [
@@ -76,6 +92,7 @@
     },
     {
       "id": "netbeans",
+      "requer": ["jdk"],
       "nome": "Apache NetBeans",
       "versao": "27",
       "categoria": "IDE e Editores",
@@ -86,12 +103,11 @@
       "instalacao": { "tipo": "zip", "destino": "netbeans", "limparAntes": true },
       "detectar": "netbeans/bin/netbeans64.exe",
       "detectarInferido": false,
-      "executar": "netbeans/bin/netbeans64.exe --jdkhome \"{JAVA_HOME}\"",
+      "executar": "netbeans/bin/netbeans64.exe --jdkhome \"{JAVA_HOME}\" --userdir \"{DEVAPP_HOME}\\cache\\netbeans\"",
       "env": { "NETBEANS_HOME": "netbeans" },
       "path": [],
       "portatil": true,
-      "perfilUsuario": ["%APPDATA%/NetBeans"],
-      "notas": "Nao recebe --userdir, entao grava configuracao no perfil do usuario."
+      "notas": "Passa a receber --userdir apontando para cache/netbeans; sem isso grava a configuracao em %APPDATA%/NetBeans."
     },
     {
       "id": "android-studio",
@@ -167,7 +183,7 @@
       "detectarInferido": true,
       "executar": null,
       "env": { "NODE_HOME": "node" },
-      "path": ["node"],
+      "path": ["node", "cache/npm"],
       "portatil": true,
       "perfilUsuario": ["%APPDATA%/npm", "%LOCALAPPDATA%/npm-cache"],
       "notas": "No menu antigo a opcao 14 instalava Node e em seguida Git."
@@ -313,6 +329,7 @@
     },
     {
       "id": "maven",
+      "requer": ["jdk"],
       "nome": "Apache Maven",
       "versao": "3.9.16",
       "categoria": "Build",
@@ -331,6 +348,7 @@
     },
     {
       "id": "gradle",
+      "requer": ["jdk"],
       "nome": "Gradle",
       "versao": "8.12",
       "categoria": "Build",
@@ -451,6 +469,7 @@
     },
     {
       "id": "neo4j",
+      "requer": ["jdk"],
       "nome": "Neo4j Community",
       "versao": "5.17.0",
       "categoria": "Bancos de dados",
@@ -479,12 +498,11 @@
       "instalacao": { "tipo": "zip", "destino": "dbeaver" },
       "detectar": "dbeaver/dbeaver.exe",
       "detectarInferido": false,
-      "executar": "dbeaver/dbeaver.exe",
+      "executar": "dbeaver/dbeaver.exe -data \"{DEVAPP_HOME}\\cache\\dbeaver\"",
       "env": { "DBEAVER_HOME": "dbeaver" },
       "path": [],
       "portatil": true,
-      "perfilUsuario": ["%APPDATA%/DBeaverData"],
-      "notas": "URL 'latest': a versao muda sem aviso. A rotina antiga nao limpava a pasta antes, o que trava o 7za num prompt de sobrescrita."
+      "notas": "Passa a receber -data apontando para cache/dbeaver; sem isso o workspace vai para %APPDATA%/DBeaverData. URL 'latest': a versao muda sem aviso. A rotina antiga nao limpava a pasta antes, o que trava o 7za num prompt de sobrescrita."
     },
     {
       "id": "mongosh",

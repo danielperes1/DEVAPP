@@ -580,6 +580,12 @@
     if (!f.Implementada) avisos.push('sem rotina');
     if (f.PerfilUsuario) avisos.push('escreve no seu perfil');
 
+    // Dependências que ainda faltam: instalar esta ferramenta puxa elas junto.
+    const pendentes = faltaAntes(f);
+    if (pendentes.length && !f.Instalada) {
+      avisos.push('vem com ' + pendentes.map(x => x.Nome).join(' e '));
+    }
+
     if (avisos.length) {
       html += '<div class="etiquetas">' +
         avisos.map(a => '<span class="etiqueta">' + a + '</span>').join('') +
@@ -621,7 +627,15 @@
   // ---------- instalacao ----------
   let emObra = null;   // id da ferramenta sendo instalada
 
-  function pintarObra(cartao, etapa, porcento, detalhe) {
+  // Dependências declaradas no catálogo que ainda não estão no disco.
+  function faltaAntes(f) {
+    if (!f.Requer || !dados) return [];
+    return f.Requer
+      .map(id => dados.ferramentas.find(x => x.Id === id))
+      .filter(x => x && !x.Instalada);
+  }
+
+  function pintarObra(cartao, etapa, porcento, detalhe, passo, total) {
     let caixa = cartao.querySelector('.obra');
     if (!caixa) {
       const acoes = cartao.querySelector('.acoes');
@@ -635,7 +649,8 @@
     }
     const indefinido = !(porcento >= 0);
     caixa.classList.toggle('indefinido', indefinido);
-    caixa.querySelector('.etapa').textContent = etapa;
+    const fila = (total > 1) ? (passo + '/' + total + '  ') : '';
+    caixa.querySelector('.etapa').textContent = fila + etapa;
     caixa.querySelector('.pct').textContent = indefinido ? '' : porcento + '%';
     caixa.querySelector('.calha i').style.width = (indefinido ? 35 : porcento) + '%';
     caixa.querySelector('.detalhe').textContent = detalhe || '';
@@ -656,7 +671,10 @@
     }
 
     emObra = f.Id;
-    pintarObra(cartao, 'iniciando', -1, f.Nome);
+    const juntos = faltaAntes(f);
+    pintarObra(cartao, 'iniciando', -1,
+               juntos.length ? ('junto com ' + juntos.map(x => x.Nome).join(', ')) : f.Nome,
+               1, juntos.length + 1);
 
     try {
       const r = await fetch('/api/instalar?t=' + encodeURIComponent(chave) + '&id=' + encodeURIComponent(f.Id),
@@ -679,7 +697,8 @@
         p = await r.json();
       } catch (e) { return; }   // servidor ocupado num instante: tenta de novo
 
-      pintarObra(cartao, p.etapa || 'trabalhando', (p.porcento === undefined ? -1 : p.porcento), p.detalhe);
+      pintarObra(cartao, p.etapa || 'trabalhando', (p.porcento === undefined ? -1 : p.porcento),
+                 p.detalhe, p.passo, p.total);
 
       if (p.fim) {
         clearInterval(relogio);

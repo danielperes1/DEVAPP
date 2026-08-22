@@ -86,6 +86,16 @@ function Get-Ambiente {
             $mapa[$prop.Name] = Resolve-Caminho $prop.Value
         }
     }
+
+    # Segunda passada: valores que nao sao caminho, e sim texto montado a
+    # partir dos caminhos ja resolvidos. E o caso do Maven, que nao tem
+    # variavel propria para o repositorio local e so aceita como argumento.
+    if ($null -ne $Catalogo.ambienteTexto) {
+        foreach ($prop in $Catalogo.ambienteTexto.PSObject.Properties) {
+            $mapa[$prop.Name] = Expand-Modelo -Texto ([string]$prop.Value) -Mapa $mapa
+        }
+    }
+
     return $mapa
 }
 
@@ -150,6 +160,9 @@ function Get-Status {
         $resultado.Add([pscustomobject]@{
             Instalavel     = $instalavel
             TipoInstalacao = $tipo
+            # O Where-Object nao e enfeite: sem ele, uma ferramenta sem
+            # dependencia sai com [null] em vez de lista vazia.
+            Requer         = @($f.requer | Where-Object { $_ })
             Id           = $f.id
             Nome         = $f.nome
             Categoria    = $f.categoria
@@ -309,6 +322,11 @@ function Show-Doutor {
 
 $ArquivoProgresso = Join-Path $env:TEMP 'devapp-progresso.json'
 
+# Uma instalacao pode arrastar dependencias (o Maven puxa o JDK). Estes dois
+# dizem em que ponto da fila estamos, para a pagina mostrar "1 de 2".
+$script:PassoAtual = 1
+$script:TotalPassos = 1
+
 function Write-Progresso {
     param(
         [string]$Id,
@@ -326,6 +344,8 @@ function Write-Progresso {
         detalhe  = $Detalhe
         fim      = [bool]$Fim
         erro     = $Erro
+        passo    = $script:PassoAtual
+        total    = $script:TotalPassos
         quando   = (Get-Date).ToString('s')
     }
     try {
@@ -335,7 +355,9 @@ function Write-Progresso {
 
     $marca = '  '
     if ($Porcento -ge 0) { $marca = ('{0,3}%' -f $Porcento) }
-    Write-Host ("  {0} {1} {2}" -f $marca, $Etapa, $Detalhe)
+    $fila = ''
+    if ($script:TotalPassos -gt 1) { $fila = ('[{0}/{1}] ' -f $script:PassoAtual, $script:TotalPassos) }
+    Write-Host ("  {0} {1}{2} {3}" -f $marca, $fila, $Etapa, $Detalhe)
 }
 
 
@@ -512,6 +534,59 @@ function Invoke-PosInstalacao {
 }
 
 
+function Get-CadeiaInstalacao {
+    <#
+      Devolve, em ordem, tudo que precisa ser instalado para atender ao pedido:
+      primeiro as dependencias que ainda faltam, e o pedido no fim. E o que o
+      menu antigo fazia com "JDK + MAVEN", so que declarado no catalogo em vez
+      de amarrado num GOTO, e valendo para qualquer combinacao.
+    #>
+    param($Catalogo, [string]$Id, $Vistos)
+
+    if ($null -eq $Vistos) { $Vistos = New-Object System.Collections.Generic.List[string] }
+    $ordem = New-Object System.Collections.Generic.List[string]
+
+    if ($Vistos.Contains($Id)) { return $ordem }   # protege contra ciclo
+    [void]$Vistos.Add($Id)
+
+    $f = $Catalogo.ferramentas | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+    if ($null -eq $f) { return $ordem }
+
+    foreach ($dep in @($f.requer)) {
+        if ([string]::IsNullOrWhiteSpace($dep)) { continue }
+        $outra = $Catalogo.ferramentas | Where-Object { $_.id -eq $dep } | Select-Object -First 1
+        if ($null -eq $outra) { continue }
+        if (Test-Instalada $outra) { continue }    # ja esta la, nao repete
+        foreach ($x in @(Get-CadeiaInstalacao -Catalogo $Catalogo -Id $dep -Vistos $Vistos)) {
+            if (-not $ordem.Contains($x)) { [void]$ordem.Add($x) }
+        }
+    }
+
+    if (-not $ordem.Contains($Id)) { [void]$ordem.Add($Id) }
+    return $ordem
+}
+
+
+function Install-Cadeia {
+    param($Catalogo, [string]$Id)
+
+    $cadeia = @(Get-CadeiaInstalacao -Catalogo $Catalogo -Id $Id)
+    $script:TotalPassos = $cadeia.Count
+    $script:PassoAtual = 0
+
+    $nomes = @()
+    foreach ($item in $cadeia) {
+        $script:PassoAtual++
+        $resultado = Install-Ferramenta -Catalogo $Catalogo -Id $item
+        if (-not $resultado.ok) { return $resultado }
+        $nomes += $resultado.nome
+    }
+
+    Write-Progresso -Id $Id -Etapa 'pronto' -Porcento 100 -Detalhe ($nomes -join ' + ') -Fim
+    return @{ ok = $true; nome = ($nomes -join ' + ') }
+}
+
+
 function Install-Ferramenta {
     param($Catalogo, [string]$Id)
 
@@ -614,7 +689,9 @@ function Install-Ferramenta {
             throw ("Terminou, mas o arquivo de verificacao nao apareceu: {0}" -f $f.detectar)
         }
 
-        Write-Progresso -Id $Id -Etapa 'pronto' -Porcento 100 -Detalhe $f.nome -Fim
+        # Sem -Fim de proposito: quem encerra a fila e o Install-Cadeia, senao
+        # a pagina pararia de acompanhar assim que a primeira peca terminasse.
+        Write-Progresso -Id $Id -Etapa 'instalado' -Porcento 100 -Detalhe $f.nome
         return @{ ok = $true; nome = $f.nome }
     }
     catch {
@@ -882,6 +959,18 @@ function Start-Servidor {
                         $recusa = "$($alvo.nome) precisa de mais de um download, ainda nao implementado."
                     }
 
+                    if ($recusa -eq '') {
+                        # Uma dependencia impossivel de instalar inviabiliza o
+                        # pedido inteiro: melhor recusar agora do que parar no meio.
+                        foreach ($passoId in @(Get-CadeiaInstalacao -Catalogo $cat -Id $pedido)) {
+                            $peca = $cat.ferramentas | Where-Object { $_.id -eq $passoId } | Select-Object -First 1
+                            if ($null -eq $peca.instalacao -or $TiposSuportados -notcontains $peca.instalacao.tipo -or $null -ne $peca.downloadExtra) {
+                                $recusa = "$($alvo.nome) depende de $($peca.nome), que ainda nao tem instalacao automatica."
+                                break
+                            }
+                        }
+                    }
+
                     if ($recusa -ne '') {
                         Send-Texto $contexto 400 'application/json; charset=utf-8' `
                             (@{ ok = $false; erro = $recusa } | ConvertTo-Json -Compress)
@@ -1012,7 +1101,7 @@ switch ($Acao) {
             throw "Informe qual ferramenta instalar. Exemplo: .\devapp.ps1 -Acao instalar -Id putty"
         }
         Write-Host ''
-        $r = Install-Ferramenta -Catalogo $catalogo -Id $Id
+        $r = Install-Cadeia -Catalogo $catalogo -Id $Id
         Write-Host ''
         if ($r.ok) { Write-Host ("  {0} instalado." -f $r.nome) }
         else       { Write-Host ("  Falhou: {0}" -f $r.erro) }
