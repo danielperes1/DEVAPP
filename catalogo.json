@@ -56,7 +56,13 @@
     "ANDROID_EMULATOR_HOME": "cache/android",
     "ANDROID_AVD_HOME": "cache/android/avd",
     "MAVEN_REPO": "cache/maven",
-    "STUDIO_PROPERTIES": "cache/android-studio/idea.properties"
+    "STUDIO_PROPERTIES": "cache/android-studio/idea.properties",
+    "CATALINA_HOME": "tomcat",
+    "GOROOT": "go",
+    "GOPATH": "cache/go",
+    "GOCACHE": "cache/go-build",
+    "GOMODCACHE": "cache/go/pkg/mod",
+    "IDEA_PROPERTIES": "cache/intellij/idea.properties"
   },
   "_ambienteTexto": "Valores que nao sao caminho: sao montados depois, trocando {VAR} pelos caminhos ja resolvidos acima.",
   "ambienteTexto": {
@@ -959,6 +965,111 @@
       "path": [],
       "portatil": true,
       "notas": "Pacote portatil com Apache, PHP, MySQL e phpMyAdmin, feito para pendrive. Os sites ficam em usbwebserver/root. Vem configurado com Apache na porta 80 e MySQL na 3306 (a 8.6 usava 8080 e 3307). Nao conflita com os bancos do DEVAPP, mas sao as portas mais disputadas do Windows: se nao subir, provavelmente ha outro servico nelas. Da para mudar na propria janela do programa. Nao entra como \"servidor\" do catalogo porque tem janela propria para ligar e desligar os servicos. PROCEDENCIA: a versao 8.6.2 nao existe em usbwebserver.net, que so publica a 8.6; esta vem de um espelho de terceiros indicado pelo Daniel. A favor dele: o usbwebserver.exe e byte a byte identico ao da 8.6 oficial, e a estrutura de pastas e a mesma; Apache e MySQL diferem, o que e esperado numa versao mais nova. Nao ha checksum oficial para conferir, entao o sha256 do arquivo fica registrado aqui como referencia para detectar troca futura."
+    },
+    {
+      "id": "tomcat",
+      "nome": "Apache Tomcat",
+      "versao": "10.1.34",
+      "categoria": "Servidores web",
+      "requer": [
+        "jdk"
+      ],
+      "download": {
+        "url": "https://archive.apache.org/dist/tomcat/tomcat-10/v10.1.34/bin/apache-tomcat-10.1.34-windows-x64.zip",
+        "arquivo": "apache-tomcat-10.1.34-windows-x64.zip"
+      },
+      "instalacao": {
+        "tipo": "zip",
+        "pastaExtraida": "apache-tomcat-10.1.34",
+        "destino": "tomcat",
+        "limparAntes": true
+      },
+      "detectar": "tomcat/bin/catalina.bat",
+      "detectarInferido": false,
+      "executar": "tomcat/bin/catalina.bat run",
+      "parar": "tomcat/bin/shutdown.bat",
+      "servidor": {
+        "porta": 8080,
+        "url": "http://localhost:8080"
+      },
+      "env": {
+        "CATALINA_HOME": "tomcat"
+      },
+      "path": [
+        "tomcat/bin"
+      ],
+      "portatil": true,
+      "notas": "Serie 10.1: usa o namespace jakarta.*, que e o exigido pelo Spring Boot 3 e pelo Jakarta EE. Se o material do curso ainda usa javax.servlet, a serie correta e a 9 -- e so trocar a URL e a pastaExtraida no catalogo. Vem baixado do archive.apache.org porque o espelho corrente descarta versoes antigas, o mesmo motivo do NetBeans. Existe porque o catalogo instala tres extensoes de conexao a servidor de aplicacao (redhat.vscode-server-connector e companhia) que ate agora nao tinham a que se conectar."
+    },
+    {
+      "id": "intellij",
+      "nome": "IntelliJ IDEA Community",
+      "versao": "2024.3.2",
+      "categoria": "IDE e Editores",
+      "download": {
+        "url": "https://download.jetbrains.com/idea/ideaIC-2024.3.2.win.zip",
+        "arquivo": "ideaIC-2024.3.2.win.zip"
+      },
+      "instalacao": {
+        "tipo": "zip",
+        "pastaExtraida": "*",
+        "destino": "intellij",
+        "limparAntes": true
+      },
+      "detectar": "intellij/bin/idea64.exe",
+      "detectarInferido": true,
+      "executar": "intellij/bin/idea64.exe",
+      "env": {
+        "INTELLIJ_HOME": "intellij"
+      },
+      "path": [],
+      "portatil": true,
+      "perfilUsuario": [
+        "%APPDATA%/JetBrains",
+        "%LOCALAPPDATA%/JetBrains"
+      ],
+      "redirecionadoPor": [
+        "IDEA_PROPERTIES"
+      ],
+      "redirecionamentoMedido": false,
+      "notas": "O zip traz uma pasta com o numero de build no nome, que muda a cada versao; por isso a receita usa pastaExtraida '*', que manda o instalador descobrir sozinho. Traz o proprio runtime Java, entao abre sem depender do JDK -- que continua necessario para compilar."
+    },
+    {
+      "id": "go",
+      "nome": "Go",
+      "versao": "1.24.0",
+      "categoria": "Linguagens e SDKs",
+      "download": {
+        "url": "https://go.dev/dl/go1.24.0.windows-amd64.zip",
+        "arquivo": "go1.24.0.windows-amd64.zip"
+      },
+      "instalacao": {
+        "tipo": "zip",
+        "destino": "go",
+        "limparAntes": true
+      },
+      "detectar": "go/bin/go.exe",
+      "detectarInferido": true,
+      "executar": null,
+      "env": {
+        "GOROOT": "go"
+      },
+      "path": [
+        "go/bin",
+        "cache/go/bin"
+      ],
+      "portatil": true,
+      "perfilUsuario": [
+        "%USERPROFILE%/go",
+        "%LOCALAPPDATA%/go-build"
+      ],
+      "redirecionadoPor": [
+        "GOPATH",
+        "GOCACHE",
+        "GOMODCACHE"
+      ],
+      "redirecionamentoMedido": false,
+      "notas": "O zip ja traz a pasta go na raiz, entao extrai direto sem renomear."
     }
   ],
   "linksExternos": [
@@ -1118,6 +1229,11 @@
       "alvo": "cache/android-studio/idea.properties",
       "porque": "O Android Studio e a unica ferramenta do catalogo que ignora variaveis de ambiente para suas pastas. Ele le este arquivo pelo STUDIO_PROPERTIES, fora da instalacao: se o conteudo estiver errado, ele volta ao padrao em vez de deixar de abrir.",
       "conteudo": "idea.config.path={DEVAPP_BARRAS}/cache/android-studio/config\nidea.system.path={DEVAPP_BARRAS}/cache/android-studio/system\nidea.plugins.path={DEVAPP_BARRAS}/cache/android-studio/plugins\nidea.log.path={DEVAPP_BARRAS}/cache/android-studio/log\n"
+    },
+    {
+      "alvo": "cache/intellij/idea.properties",
+      "porque": "O IntelliJ, como o Android Studio, ignora variaveis de ambiente para suas pastas e le este arquivo pelo IDEA_PROPERTIES. Fica fora da instalacao: se o conteudo estiver errado, ele volta ao padrao em vez de deixar de abrir.",
+      "conteudo": "idea.config.path={DEVAPP_BARRAS}/cache/intellij/config\nidea.system.path={DEVAPP_BARRAS}/cache/intellij/system\nidea.plugins.path={DEVAPP_BARRAS}/cache/intellij/plugins\nidea.log.path={DEVAPP_BARRAS}/cache/intellij/log\n"
     }
   ]
 }

@@ -558,9 +558,24 @@ function Expand-Pacote {
     if ($Ferramenta.instalacao.pastaExtraida -and $Pacote -eq $Ferramenta.download) {
         $area = Join-Path $Temporario ('conteudo-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
         Expand-Zip -Arquivo $Arquivo -Pasta $area
-        $origem = Join-Path $area $Ferramenta.instalacao.pastaExtraida
+
+        $nomeEsperado = [string]$Ferramenta.instalacao.pastaExtraida
+        if ($nomeEsperado -eq '*') {
+            # O zip traz uma pasta so, com nome que muda a cada versao e nao da
+            # para prever -- o IntelliJ, por exemplo, usa o numero de build.
+            # Entao descobre qual e, em vez de exigir que o catalogo adivinhe.
+            $dentro = @(Get-ChildItem -LiteralPath $area -Directory)
+            if ($dentro.Count -ne 1) {
+                throw ("Esperava uma unica pasta na raiz do zip, encontrei {0}." -f $dentro.Count)
+            }
+            $origem = $dentro[0].FullName
+        }
+        else {
+            $origem = Join-Path $area $nomeEsperado
+        }
+
         if (-not (Test-Path -LiteralPath $origem)) {
-            throw ("O zip nao trouxe a pasta esperada '{0}'." -f $Ferramenta.instalacao.pastaExtraida)
+            throw ("O zip nao trouxe a pasta esperada '{0}'." -f $nomeEsperado)
         }
         $destino = Resolve-Caminho $Ferramenta.instalacao.destino
         Write-Progresso -Id $Id -Etapa 'instalando' -Porcento 92 -Detalhe ('movendo para ' + $Ferramenta.instalacao.destino)
@@ -1068,6 +1083,23 @@ function Resolve-Comando {
 }
 
 
+function Start-Comando {
+    <#
+      Start-Process recusa -ArgumentList vazio, e comandos sem argumento
+      existem: o shutdown.bat do Tomcat e um. Este envelope decide se passa
+      a lista ou nao, para cada chamada nao precisar lembrar disso.
+    #>
+    param($Comando, [switch]$Esperar, [switch]$Escondido)
+
+    $extras = @{ FilePath = $Comando.programa; WorkingDirectory = $PSScriptRoot; PassThru = $true }
+    if (@($Comando.argumentos).Count -gt 0) { $extras['ArgumentList'] = $Comando.argumentos }
+    if ($Esperar)   { $extras['Wait'] = $true }
+    if ($Escondido) { $extras['WindowStyle'] = 'Hidden' }
+
+    return (Start-Process @extras)
+}
+
+
 function Get-EstadoBancos {
     <#
       Quem esta no ar. O arquivo sobrevive ao fechamento da interface, entao
@@ -1131,7 +1163,7 @@ function Start-Banco {
             if (-not $jaTem) {
                 Write-Host ("  Preparando a base de {0} (primeira vez)..." -f $f.nome)
                 $ini = Resolve-Comando -Catalogo $Catalogo -Linha $f.primeiraExecucao
-                $r = Start-Process $ini.programa -ArgumentList $ini.argumentos -WorkingDirectory $PSScriptRoot -Wait -PassThru -WindowStyle Hidden
+                $r = Start-Comando -Comando $ini -Esperar -Escondido
                 if ($r.ExitCode -ne 0) { throw ("A preparacao da base falhou (codigo {0})." -f $r.ExitCode) }
             }
         }
@@ -1141,8 +1173,7 @@ function Start-Banco {
             throw ("Executavel nao encontrado: {0}" -f $cmd.programa)
         }
 
-        $proc = Start-Process $cmd.programa -ArgumentList $cmd.argumentos `
-                    -WorkingDirectory $PSScriptRoot -PassThru -WindowStyle Hidden
+        $proc = Start-Comando -Comando $cmd -Escondido
 
         Start-Sleep -Milliseconds 1500
         if ($proc.HasExited) {
@@ -1176,7 +1207,7 @@ function Stop-Banco {
         # como ultimo recurso, e o Neo4j em modo console so tem esse caminho.
         if ($f.parar) {
             $cmd = Resolve-Comando -Catalogo $Catalogo -Linha $f.parar
-            Start-Process $cmd.programa -ArgumentList $cmd.argumentos -WorkingDirectory $PSScriptRoot -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+            Start-Comando -Comando $cmd -Esperar -Escondido -ErrorAction SilentlyContinue | Out-Null
             for ($i = 0; $i -lt 20; $i++) {
                 if (-not (Get-Process -Id $numero -ErrorAction SilentlyContinue)) { break }
                 Start-Sleep -Milliseconds 500
