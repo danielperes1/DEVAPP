@@ -1099,9 +1099,23 @@ function Stop-Banco {
         $aindaVivo = Get-Process -Id $numero -ErrorAction SilentlyContinue
         $modo = 'pelo comando de parada'
         if ($aindaVivo) {
-            Stop-Process -Id $numero -Force -ErrorAction SilentlyContinue
-            Start-Sleep -Milliseconds 500
+            # taskkill /T, e nao Stop-Process: quando o servidor e iniciado por
+            # um .bat (Neo4j), o processo que rastreamos e o cmd.exe, e o banco
+            # de verdade e um filho dele. Encerrar so o pai deixava o servidor
+            # no ar enquanto o DEVAPP anunciava que tinha parado.
+            & taskkill /PID $numero /T /F 2>&1 | Out-Null
+            Start-Sleep -Milliseconds 800
             $modo = 'encerrado a forca'
+        }
+
+        # Confere o resultado em vez de presumir: se a porta continua ocupada,
+        # alguma coisa sobreviveu e quem chamou precisa saber.
+        if ($f.servidor -and $f.servidor.porta) {
+            $presa = Get-NetTCPConnection -LocalPort $f.servidor.porta -State Listen -ErrorAction SilentlyContinue
+            if ($presa) {
+                return @{ ok = $false
+                          erro = ("Mandei parar, mas a porta {0} continua ocupada. Algum processo sobreviveu." -f $f.servidor.porta) }
+            }
         }
 
         $estado.Remove($Id)
@@ -1174,7 +1188,7 @@ function Start-Servidor {
     $base = "http://127.0.0.1:$Porta/"
     $endereco = $base + '?t=' + $chave
 
-    $ambiente = Set-Ambiente -Catalogo (Import-Catalogo)
+    $ambiente = [pscustomobject]@{ Variaveis = (Get-Ambiente -Catalogo (Import-Catalogo)).Count; Pastas = @(Get-PathDevapp -Catalogo (Import-Catalogo)).Count }
 
     # Processo ajudante da instalacao em andamento, se houver. O servidor
     # nunca baixa nada em maos proprias: se baixasse, ficaria surdo enquanto
@@ -1409,6 +1423,14 @@ function Start-Servidor {
 # ------------------------------------------------------------------
 
 $catalogo = Import-Catalogo
+
+# Toda acao que LANCA alguma coisa precisa do ambiente do DEVAPP aplicado.
+# Faltava aqui: so o "servir" aplicava, entao "iniciar -Id neo4j" subia o
+# banco com o Java do sistema em vez do JDK do DEVAPP -- e numa maquina sem
+# Java instalado nem subia, apesar do JDK estar na pasta ao lado.
+if (@('servir', 'instalar', 'iniciar', 'parar', 'extensoes') -contains $Acao) {
+    [void](Set-Ambiente -Catalogo $catalogo)
+}
 
 switch ($Acao) {
 
