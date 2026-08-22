@@ -303,15 +303,21 @@ function Show-Doutor {
     # dois faz o relatorio apontar problemas ja corrigidos, e um relatorio
     # que grita a toa e um relatorio que ninguem le.
     $redirecionadas = @($Catalogo.ferramentas | Where-Object { $_.redirecionadoPor })
-    $medidas    = @($redirecionadas | Where-Object { $_.redirecionamentoMedido })
-    $naoMedidas = @($redirecionadas | Where-Object { -not $_.redirecionamentoMedido })
 
     Write-Host ("3. Caches trazidos para dentro do DEVAPP ({0}):" -f $redirecionadas.Count)
-    foreach ($x in $medidas) {
-        Write-Host ("     [medido] {0,-24} {1}" -f $x.nome, ($x.redirecionadoPor -join ', '))
-    }
-    foreach ($x in $naoMedidas) {
-        Write-Host ("     [no papel] {0,-22} {1}" -f $x.nome, ($x.redirecionadoPor -join ', '))
+    foreach ($x in $redirecionadas) {
+        # "parcial" existe porque algumas ferramentas do Google guardam
+        # preferencia do usuario (telemetria, aceite de termos) fora da pasta
+        # por design. O volume vem para ca; esses poucos bytes nao.
+        # O [string] nao e enfeite: em PowerShell, $true -eq 'parcial' da
+        # VERDADEIRO, porque o lado direito e convertido para o tipo do
+        # esquerdo, e uma string nao vazia vira $true. Sem o cast, tudo que
+        # estivesse medido apareceria como parcial.
+        $marca = [string]$x.redirecionamentoMedido
+        $selo = '[no papel] '
+        if ($marca -eq 'parcial')  { $selo = '[parcial]  ' }
+        elseif ($marca -eq 'True') { $selo = '[medido]   ' }
+        Write-Host ("     {0}{1,-22} {2}" -f $selo, $x.nome, ($x.redirecionadoPor -join ', '))
     }
     Write-Host ""
 

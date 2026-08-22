@@ -8,7 +8,7 @@
       "portatil": "false = a instalacao mexe fora da pasta do DEVAPP (registro, Adicionar/Remover Programas, etc).",
       "perfilUsuario": "Onde a ferramenta escreveria FORA do DEVAPP se nada fosse feito. Documenta o comportamento padrao dela, nao um problema em aberto.",
       "redirecionadoPor": "O que traz esses caminhos para dentro do DEVAPP. Sem este campo, o vazamento continua.",
-      "redirecionamentoMedido": "true = comprovado rodando a ferramenta e conferindo que o perfil do usuario nao cresceu."
+      "redirecionamentoMedido": "true = comprovado rodando a ferramenta e conferindo que o perfil do usuario nao cresceu. \"parcial\" = o volume foi redirecionado, mas sobra algum arquivo pequeno de preferencia do usuario."
     }
   },
   "ambiente": {
@@ -165,7 +165,7 @@
       "redirecionadoPor": [
         "STUDIO_PROPERTIES"
       ],
-      "redirecionamentoMedido": true
+      "redirecionamentoMedido": "parcial"
     },
     {
       "id": "notepad",
@@ -486,7 +486,8 @@
         "ANDROID_EMULATOR_HOME",
         "ANDROID_AVD_HOME"
       ],
-      "redirecionamentoMedido": false
+      "redirecionamentoMedido": "parcial",
+      "notas": "Medido: o ANDROID_AVD_HOME funciona e as imagens de emulador, que sao o que pesa em GB, vao para cache/android/avd. Sobram em ~/.android apenas analytics.settings e um arquivo de cache, somando 162 bytes: sao preferencia do usuario, do mesmo tipo do consentOptions do Android Studio, e nenhuma variavel os move."
     },
     {
       "id": "maven",
