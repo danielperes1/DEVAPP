@@ -161,11 +161,11 @@
         "%APPDATA%/Google/AndroidStudio*",
         "%USERPROFILE%/.android"
       ],
-      "notas": "BUG #3 do start.bat: a rotina faz cd para pasta inexistente e extrai um nivel ACIMA do DEVAPP. Ao limpar antes de reinstalar, apagar SOMENTE android/android-studio: android/sdk e irmao e nao pode ir junto. As pastas de configuracao vao para cache/android-studio pelo STUDIO_PROPERTIES; o proprio .android continua indo pelo ANDROID_USER_HOME.",
+      "notas": "BUG #3 do start.bat: a rotina faz cd para pasta inexistente e extrai um nivel ACIMA do DEVAPP. Ao limpar antes de reinstalar, apagar SOMENTE android/android-studio: android/sdk e irmao e nao pode ir junto. As pastas de configuracao vao para cache/android-studio pelo STUDIO_PROPERTIES; o proprio .android continua indo pelo ANDROID_USER_HOME. Medido: IDE aberta de verdade. 733 arquivos de config, log e system foram para cache/android-studio. Escapa apenas %APPDATA%/Google/consentOptions, um arquivo, que e o aceite dos termos de uso e nao configuracao -- nenhuma variavel muda isso.",
       "redirecionadoPor": [
         "STUDIO_PROPERTIES"
       ],
-      "redirecionamentoMedido": false
+      "redirecionamentoMedido": true
     },
     {
       "id": "notepad",
@@ -380,7 +380,7 @@
         "limparAntes": true
       },
       "detectar": "dotnet/dotnet.exe",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": null,
       "env": {
         "DOTNET_HOME": "dotnet",
@@ -398,7 +398,8 @@
         "NUGET_PACKAGES",
         "DOTNET_CLI_HOME"
       ],
-      "redirecionamentoMedido": false
+      "redirecionamentoMedido": true,
+      "notas": "Medido: projeto real com Newtonsoft.Json restaurado. ~/.nuget/packages nao cresceu; o pacote foi para cache/nuget."
     },
     {
       "id": "flutter",
@@ -415,7 +416,7 @@
         "limparAntes": true
       },
       "detectar": "flutter/bin/flutter.bat",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": null,
       "env": {
         "FLUTTER_HOME": "flutter"
@@ -431,7 +432,8 @@
       "redirecionadoPor": [
         "PUB_CACHE"
       ],
-      "redirecionamentoMedido": false
+      "redirecionamentoMedido": true,
+      "notas": "Medido: projeto criado e pub get executado. %LOCALAPPDATA%/Pub/Cache nao cresceu; 11527 arquivos foram para cache/pub."
     },
     {
       "id": "android-sdk",

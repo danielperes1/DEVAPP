@@ -469,11 +469,51 @@ function Get-ArquivoComWget {
 
 
 function Expand-Zip {
+    <#
+      O ExtractToDirectory do .NET Framework nao sobrescreve: ele lanca erro
+      no primeiro arquivo repetido, sem opcao para mudar isso. Isso aparece
+      quando uma ferramenta vem em varios pacotes que se sobrepoem -- o
+      runtime do ASP.NET traz o mesmo dotnet.exe que o SDK.
+
+      Entao: tenta o caminho rapido primeiro e, se esbarrar num arquivo que
+      ja existe, refaz arquivo por arquivo sobrescrevendo. O modo lento so
+      paga o custo quando e realmente necessario.
+    #>
     param([string]$Arquivo, [string]$Pasta)
 
     Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
     if (-not (Test-Path -LiteralPath $Pasta)) { New-Item -ItemType Directory -Path $Pasta -Force | Out-Null }
-    [IO.Compression.ZipFile]::ExtractToDirectory($Arquivo, $Pasta)
+
+    try {
+        [IO.Compression.ZipFile]::ExtractToDirectory($Arquivo, $Pasta)
+        return
+    }
+    catch {
+        if ($_.Exception.Message -notmatch 'existe|exists') { throw }
+    }
+
+    $zip = [IO.Compression.ZipFile]::OpenRead($Arquivo)
+    try {
+        foreach ($entrada in $zip.Entries) {
+            $destino = Join-Path $Pasta ($entrada.FullName -replace '/', '\')
+
+            if ([string]::IsNullOrEmpty($entrada.Name)) {   # entrada de pasta
+                if (-not (Test-Path -LiteralPath $destino)) {
+                    New-Item -ItemType Directory -Path $destino -Force | Out-Null
+                }
+                continue
+            }
+
+            $pastaDele = Split-Path -Parent $destino
+            if (-not (Test-Path -LiteralPath $pastaDele)) {
+                New-Item -ItemType Directory -Path $pastaDele -Force | Out-Null
+            }
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entrada, $destino, $true)
+        }
+    }
+    finally {
+        $zip.Dispose()
+    }
 }
 
 
