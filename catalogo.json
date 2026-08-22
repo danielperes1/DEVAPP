@@ -6,7 +6,9 @@
     "convencoes": {
       "detectarInferido": "true = o start.bat nao tinha checagem IF EXIST para esta ferramenta; o caminho foi deduzido e precisa ser conferido.",
       "portatil": "false = a instalacao mexe fora da pasta do DEVAPP (registro, Adicionar/Remover Programas, etc).",
-      "perfilUsuario": "Caminhos fora do DEVAPP que a ferramenta escreve AO SER USADA. Deduzido do comportamento padrao de cada ferramenta; conferir."
+      "perfilUsuario": "Onde a ferramenta escreveria FORA do DEVAPP se nada fosse feito. Documenta o comportamento padrao dela, nao um problema em aberto.",
+      "redirecionadoPor": "O que traz esses caminhos para dentro do DEVAPP. Sem este campo, o vazamento continua.",
+      "redirecionamentoMedido": "true = comprovado rodando a ferramenta e conferindo que o perfil do usuario nao cresceu."
     }
   },
   "ambiente": {
@@ -122,7 +124,14 @@
       },
       "path": [],
       "portatil": true,
-      "notas": "Passa a receber --userdir apontando para cache/netbeans; sem isso grava a configuracao em %APPDATA%/NetBeans."
+      "notas": "Passa a receber --userdir apontando para cache/netbeans; sem isso grava a configuracao em %APPDATA%/NetBeans.",
+      "perfilUsuario": [
+        "%APPDATA%/NetBeans"
+      ],
+      "redirecionadoPor": [
+        "--userdir no lancamento"
+      ],
+      "redirecionamentoMedido": false
     },
     {
       "id": "android-studio",
@@ -169,7 +178,7 @@
         "limparAntes": true
       },
       "detectar": "notepad/notepad++.exe",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": "notepad/notepad++.exe",
       "env": {
         "NOTEPAD_HOME": "notepad"
@@ -196,7 +205,7 @@
         "limparAntes": true
       },
       "detectar": "jdk/bin/java.exe",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": null,
       "env": {
         "JAVA_HOME": "jdk"
@@ -223,7 +232,7 @@
         "limparAntes": true
       },
       "detectar": "node/node.exe",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": null,
       "env": {
         "NODE_HOME": "node"
@@ -237,7 +246,12 @@
         "%APPDATA%/npm",
         "%LOCALAPPDATA%/npm-cache"
       ],
-      "notas": "No menu antigo a opcao 14 instalava Node e em seguida Git."
+      "notas": "No menu antigo a opcao 14 instalava Node e em seguida Git.",
+      "redirecionadoPor": [
+        "NPM_CONFIG_PREFIX",
+        "NPM_CONFIG_CACHE"
+      ],
+      "redirecionamentoMedido": true
     },
     {
       "id": "python",
@@ -291,7 +305,16 @@
         "pymupdf",
         "cssutils"
       ],
-      "notas": "Pacote embeddable: e um zip, nao mexe no registro nem em Adicionar/Remover Programas. NAO traz tkinter, venv nem IDLE. Divide a pasta python/ com o python-completo, entao instalar um substitui o outro."
+      "notas": "Pacote embeddable: e um zip, nao mexe no registro nem em Adicionar/Remover Programas. NAO traz tkinter, venv nem IDLE. Divide a pasta python/ com o python-completo, entao instalar um substitui o outro.",
+      "perfilUsuario": [
+        "%LOCALAPPDATA%/pip",
+        "%LOCALAPPDATA%/ms-playwright"
+      ],
+      "redirecionadoPor": [
+        "PIP_CACHE_DIR",
+        "PLAYWRIGHT_BROWSERS_PATH"
+      ],
+      "redirecionamentoMedido": true
     },
     {
       "id": "python-completo",
@@ -365,7 +388,12 @@
       "perfilUsuario": [
         "%USERPROFILE%/.dotnet",
         "%USERPROFILE%/.nuget/packages"
-      ]
+      ],
+      "redirecionadoPor": [
+        "NUGET_PACKAGES",
+        "DOTNET_CLI_HOME"
+      ],
+      "redirecionamentoMedido": false
     },
     {
       "id": "flutter",
@@ -394,7 +422,11 @@
       "perfilUsuario": [
         "%LOCALAPPDATA%/Pub/Cache",
         "%USERPROFILE%/.flutter"
-      ]
+      ],
+      "redirecionadoPor": [
+        "PUB_CACHE"
+      ],
+      "redirecionamentoMedido": false
     },
     {
       "id": "android-sdk",
@@ -426,7 +458,7 @@
         ]
       },
       "detectar": "android/sdk/platform-tools/adb.exe",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": null,
       "env": {
         "ANDROID_HOME": "android/sdk",
@@ -441,7 +473,13 @@
       "portatil": true,
       "perfilUsuario": [
         "%USERPROFILE%/.android"
-      ]
+      ],
+      "redirecionadoPor": [
+        "ANDROID_USER_HOME",
+        "ANDROID_EMULATOR_HOME",
+        "ANDROID_AVD_HOME"
+      ],
+      "redirecionamentoMedido": false
     },
     {
       "id": "maven",
@@ -462,7 +500,7 @@
         "limparAntes": true
       },
       "detectar": "maven/bin/mvn.cmd",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": null,
       "env": {
         "MAVEN_HOME": "maven"
@@ -473,7 +511,11 @@
       "portatil": true,
       "perfilUsuario": [
         "%USERPROFILE%/.m2"
-      ]
+      ],
+      "redirecionadoPor": [
+        "MAVEN_ARGS"
+      ],
+      "redirecionamentoMedido": true
     },
     {
       "id": "gradle",
@@ -494,7 +536,7 @@
         "limparAntes": true
       },
       "detectar": "gradle/bin/gradle.bat",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": null,
       "env": {
         "GRADLE_HOME": "gradle"
@@ -505,7 +547,11 @@
       "portatil": true,
       "perfilUsuario": [
         "%USERPROFILE%/.gradle"
-      ]
+      ],
+      "redirecionadoPor": [
+        "GRADLE_USER_HOME"
+      ],
+      "redirecionamentoMedido": true
     },
     {
       "id": "git",
@@ -523,7 +569,7 @@
         "limparAntes": true
       },
       "detectar": "git/bin/git.exe",
-      "detectarInferido": true,
+      "detectarInferido": false,
       "executar": null,
       "env": {
         "GIT_HOME": "git"
@@ -729,7 +775,14 @@
       },
       "path": [],
       "portatil": true,
-      "notas": "Passa a receber -data apontando para cache/dbeaver; sem isso o workspace vai para %APPDATA%/DBeaverData. URL 'latest': a versao muda sem aviso. A rotina antiga nao limpava a pasta antes, o que trava o 7za num prompt de sobrescrita."
+      "notas": "Passa a receber -data apontando para cache/dbeaver; sem isso o workspace vai para %APPDATA%/DBeaverData. URL 'latest': a versao muda sem aviso. A rotina antiga nao limpava a pasta antes, o que trava o 7za num prompt de sobrescrita.",
+      "perfilUsuario": [
+        "%APPDATA%/DBeaverData"
+      ],
+      "redirecionadoPor": [
+        "-data no lancamento"
+      ],
+      "redirecionamentoMedido": true
     },
     {
       "id": "mongosh",

@@ -281,7 +281,7 @@ function Show-Doutor {
     Write-Host ""
 
     $inferidas = @($Itens | Where-Object { $_.Inferida })
-    Write-Host ("1. Deteccao inferida ({0}) - o start.bat nao tinha IF EXIST; conferir:" -f $inferidas.Count)
+    Write-Host ("1. Deteccao ainda nao confirmada ({0}) - deduzida, e a ferramenta nunca foi instalada aqui:" -f $inferidas.Count)
     foreach ($x in $inferidas) {
         Write-Host ("     {0,-16} -> {1}" -f $x.Id, $x.Detectar)
     }
@@ -294,16 +294,32 @@ function Show-Doutor {
     }
     Write-Host ""
 
-    $sujam = @($Itens | Where-Object { $null -ne $_.PerfilUsuario })
-    Write-Host ("3. Escrevem no seu perfil ao serem usadas ({0}):" -f $sujam.Count)
-    foreach ($x in $sujam) {
-        Write-Host ("     {0,-22} {1}" -f $x.Nome, ($x.PerfilUsuario -join ', '))
+    # Separar o que ja foi resolvido do que continua em aberto. Misturar os
+    # dois faz o relatorio apontar problemas ja corrigidos, e um relatorio
+    # que grita a toa e um relatorio que ninguem le.
+    $redirecionadas = @($Catalogo.ferramentas | Where-Object { $_.redirecionadoPor })
+    $medidas    = @($redirecionadas | Where-Object { $_.redirecionamentoMedido })
+    $naoMedidas = @($redirecionadas | Where-Object { -not $_.redirecionamentoMedido })
+
+    Write-Host ("3. Caches trazidos para dentro do DEVAPP ({0}):" -f $redirecionadas.Count)
+    foreach ($x in $medidas) {
+        Write-Host ("     [medido] {0,-24} {1}" -f $x.nome, ($x.redirecionadoPor -join ', '))
+    }
+    foreach ($x in $naoMedidas) {
+        Write-Host ("     [no papel] {0,-22} {1}" -f $x.nome, ($x.redirecionadoPor -join ', '))
+    }
+    Write-Host ""
+
+    $vazam = @($Catalogo.ferramentas | Where-Object { $_.perfilUsuario -and -not $_.redirecionadoPor })
+    Write-Host ("4. Ainda escrevem no seu perfil ({0}):" -f $vazam.Count)
+    foreach ($x in $vazam) {
+        Write-Host ("     {0,-22} {1}" -f $x.nome, ($x.perfilUsuario -join ', '))
     }
     Write-Host ""
 
     $semRotina = @($Itens | Where-Object { -not $_.Implementada })
     if ($semRotina.Count -gt 0) {
-        Write-Host ("4. Estao no catalogo mas nunca tiveram rotina ({0}):" -f $semRotina.Count)
+        Write-Host ("5. Estao no catalogo mas nunca tiveram rotina ({0}):" -f $semRotina.Count)
         foreach ($x in $semRotina) { Write-Host ("     {0}" -f $x.Nome) }
         Write-Host ""
     }
@@ -316,7 +332,7 @@ function Show-Doutor {
             $conflitos[$porta] += $f.nome
         }
     }
-    Write-Host "5. Portas de servidor:"
+    Write-Host "6. Portas de servidor:"
     foreach ($porta in ($conflitos.Keys | Sort-Object)) {
         $donos = $conflitos[$porta]
         if ($donos.Count -gt 1) {
