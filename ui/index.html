@@ -803,16 +803,10 @@
   }
 
   async function remover(f, botao) {
-    let texto = 'Remover ' + f.Nome + '?
-
-A pasta inteira dela é apagada.';
-    if (f.Servidor) texto += '
-
-ISSO INCLUI OS BANCOS DE DADOS que você criou nela.';
-    texto += '
-
-Dá para instalar de novo depois, com um clique.';
-    if (!confirm(texto)) return;
+    const linhas = ['Remover ' + f.Nome + '?', '', 'A pasta inteira dela é apagada.'];
+    if (f.Servidor) linhas.push('', 'ISSO INCLUI OS BANCOS DE DADOS que você criou nela.');
+    linhas.push('', 'Dá para instalar de novo depois, com um clique.');
+    if (!confirm(linhas.join('\n'))) return;
 
     botao.disabled = true;
     try {
