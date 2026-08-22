@@ -106,11 +106,11 @@
         "jdk"
       ],
       "nome": "Apache NetBeans",
-      "versao": "27",
+      "versao": "30",
       "categoria": "IDE e Editores",
       "download": {
-        "url": "https://dlcdn.apache.org/netbeans/netbeans/27/netbeans-27-bin.zip",
-        "arquivo": "netbeans-27-bin.zip"
+        "url": "https://archive.apache.org/dist/netbeans/netbeans/30/netbeans-30-bin.zip",
+        "arquivo": "netbeans-30-bin.zip"
       },
       "instalacao": {
         "tipo": "zip",
@@ -125,14 +125,14 @@
       },
       "path": [],
       "portatil": true,
-      "notas": "Passa a receber --userdir apontando para cache/netbeans; sem isso grava a configuracao em %APPDATA%/NetBeans.",
+      "notas": "Baixado do archive.apache.org, nao do dlcdn: o espelho corrente da Apache guarda apenas a ultima versao, entao aquele endereco morre a cada lancamento -- foi o que aconteceu com a versao 27 do start.bat, e a razao de haver as versoes 25 e 26 comentadas la. O archive mantem todas as versoes para sempre, inclusive a atual. Recebe --userdir apontando para cache/netbeans; sem isso grava a configuracao em %APPDATA%/NetBeans. Medido: IDE aberta de verdade, o userdir foi para cache/netbeans e %APPDATA%/NetBeans nao chegou a ser criado.",
       "perfilUsuario": [
         "%APPDATA%/NetBeans"
       ],
       "redirecionadoPor": [
         "--userdir no lancamento"
       ],
-      "redirecionamentoMedido": false
+      "redirecionamentoMedido": true
     },
     {
       "id": "android-studio",
@@ -861,7 +861,7 @@
       "env": {},
       "path": [],
       "portatil": false,
-      "notas": "Mesma situacao do Postman: o .exe e o instalador. A URL tem '&', que no batch exigia aspas (bug #9, ja corrigido)."
+      "notas": "Mesma situacao do Postman: o .exe e o instalador. A URL tem '&', que no batch exigia aspas (bug #9, ja corrigido). O endereco recusa requisicao HEAD e responde 404 a verificadores, mas o download por GET funciona (580 MB). Nao confundir com endereco morto."
     },
     {
       "id": "putty",
