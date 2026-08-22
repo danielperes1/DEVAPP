@@ -55,7 +55,8 @@
     "ANDROID_USER_HOME": "cache/android",
     "ANDROID_EMULATOR_HOME": "cache/android",
     "ANDROID_AVD_HOME": "cache/android/avd",
-    "MAVEN_REPO": "cache/maven"
+    "MAVEN_REPO": "cache/maven",
+    "STUDIO_PROPERTIES": "cache/android-studio/idea.properties"
   },
   "_ambienteTexto": "Valores que nao sao caminho: sao montados depois, trocando {VAR} pelos caminhos ja resolvidos acima.",
   "ambienteTexto": {
@@ -160,7 +161,11 @@
         "%APPDATA%/Google/AndroidStudio*",
         "%USERPROFILE%/.android"
       ],
-      "notas": "BUG #3 do start.bat: a rotina faz cd para pasta inexistente e extrai um nivel ACIMA do DEVAPP. Ao limpar antes de reinstalar, apagar SOMENTE android/android-studio: android/sdk e irmao e nao pode ir junto."
+      "notas": "BUG #3 do start.bat: a rotina faz cd para pasta inexistente e extrai um nivel ACIMA do DEVAPP. Ao limpar antes de reinstalar, apagar SOMENTE android/android-studio: android/sdk e irmao e nao pode ir junto. As pastas de configuracao vao para cache/android-studio pelo STUDIO_PROPERTIES; o proprio .android continua indo pelo ANDROID_USER_HOME.",
+      "redirecionadoPor": [
+        "STUDIO_PROPERTIES"
+      ],
+      "redirecionamentoMedido": false
     },
     {
       "id": "notepad",
@@ -1053,6 +1058,14 @@
         "kino6.markdown-studio-local",
         "katsuyuzu.marp-to-editable-pptx"
       ]
+    }
+  ],
+  "_arquivosGerados": "Arquivos de configuracao montados na hora de aplicar o ambiente. Precisam de caminho absoluto, que muda se a pasta do DEVAPP for movida, entao nao podem ser versionados prontos. Use {DEVAPP_BARRAS} onde o formato exigir barra normal.",
+  "arquivosGerados": [
+    {
+      "alvo": "cache/android-studio/idea.properties",
+      "porque": "O Android Studio e a unica ferramenta do catalogo que ignora variaveis de ambiente para suas pastas. Ele le este arquivo pelo STUDIO_PROPERTIES, fora da instalacao: se o conteudo estiver errado, ele volta ao padrao em vez de deixar de abrir.",
+      "conteudo": "idea.config.path={DEVAPP_BARRAS}/cache/android-studio/config\nidea.system.path={DEVAPP_BARRAS}/cache/android-studio/system\nidea.plugins.path={DEVAPP_BARRAS}/cache/android-studio/plugins\nidea.log.path={DEVAPP_BARRAS}/cache/android-studio/log\n"
     }
   ]
 }

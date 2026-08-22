@@ -91,6 +91,11 @@ function Get-Ambiente {
         }
     }
 
+    # A raiz com barra normal, para formatos que nao aceitam a invertida.
+    # Arquivos .properties do mundo Java sao o caso classico: la a barra
+    # invertida e caractere de escape.
+    $mapa['DEVAPP_BARRAS'] = $PSScriptRoot -replace '\\', '/'
+
     # Segunda passada: valores que nao sao caminho, e sim texto montado a
     # partir dos caminhos ja resolvidos. E o caso do Maven, que nao tem
     # variavel propria para o repositorio local e so aceita como argumento.
@@ -785,7 +790,27 @@ function Set-Ambiente {
     $pastas = @(Get-PathDevapp -Catalogo $Catalogo)
     $env:Path = ($pastas -join ';') + ';' + $env:Path
 
-    return [pscustomobject]@{ Variaveis = $mapa.Count; Pastas = $pastas.Count }
+    # Arquivos de configuracao que dependem do caminho absoluto do DEVAPP.
+    # Sao montados aqui, e nao na instalacao, porque o caminho muda se a
+    # pasta for movida -- que e justamente o ponto de um ambiente portatil.
+    $gerados = 0
+    foreach ($arq in @($Catalogo.arquivosGerados)) {
+        if ($null -eq $arq) { continue }
+        $destino = Resolve-Caminho $arq.alvo
+        $texto = Expand-Modelo -Texto ([string]$arq.conteudo) -Mapa $mapa
+        $pastaDele = Split-Path -Parent $destino
+        if (-not (Test-Path -LiteralPath $pastaDele)) { New-Item -ItemType Directory -Path $pastaDele -Force | Out-Null }
+
+        # So grava se mudou: evita reescrever a cada acao do DEVAPP.
+        $atual = ''
+        if (Test-Path -LiteralPath $destino) { $atual = [IO.File]::ReadAllText($destino) }
+        if ($atual -ne $texto) {
+            [IO.File]::WriteAllText($destino, $texto, (New-Object System.Text.UTF8Encoding($false)))
+        }
+        $gerados++
+    }
+
+    return [pscustomobject]@{ Variaveis = $mapa.Count; Pastas = $pastas.Count; Gerados = $gerados }
 }
 
 
