@@ -18,6 +18,9 @@
     path    - mostra as pastas que entrariam no PATH
     json    - devolve o status em JSON (formato que a interface vai consumir)
     doutor  - aponta pendencias e riscos registrados no catalogo
+    bancos  - mostra quais servidores de banco estao no ar
+    iniciar - sobe um servidor de banco (-Id mariadb)
+    parar   - encerra um servidor de banco (-Id mariadb)
     servir  - sobe a interface web local e abre o navegador
 
 .PARAMETER Id
@@ -35,7 +38,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir', 'instalar')]
+    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir', 'instalar', 'iniciar', 'parar', 'bancos')]
     [string]$Acao = 'status',
 
     [string]$Id,
@@ -139,6 +142,7 @@ function Get-Status {
     param($Catalogo, [string]$Filtro)
 
     $resultado = New-Object System.Collections.Generic.List[object]
+    $bancosNoAr = Get-EstadoBancos
 
     foreach ($f in $Catalogo.ferramentas) {
         if (-not [string]::IsNullOrWhiteSpace($Filtro)) {
@@ -155,6 +159,13 @@ function Get-Status {
         if ($null -ne $f.instalacao) {
             $tipo = [string]$f.instalacao.tipo
             $instalavel = (($TiposSuportados -contains $tipo) -and ($null -eq $f.downloadExtra))
+        }
+
+        $rodando = $false
+        $numeroProcesso = 0
+        if ($null -ne $f.servidor -and $bancosNoAr.ContainsKey($f.id)) {
+            $rodando = $true
+            $numeroProcesso = $bancosNoAr[$f.id].pid
         }
 
         $resultado.Add([pscustomobject]@{
@@ -174,6 +185,8 @@ function Get-Status {
             Detectar     = $f.detectar
             Executar     = $f.executar
             Servidor     = $f.servidor
+            Rodando      = $rodando
+            Pid          = $numeroProcesso
             PerfilUsuario = $f.perfilUsuario
         })
     }
@@ -826,6 +839,157 @@ function Start-Ferramenta {
 
 
 # ------------------------------------------------------------------
+# Servidores de banco de dados
+# ------------------------------------------------------------------
+
+$ArquivoBancos = Join-Path $env:TEMP 'devapp-bancos.json'
+
+function Resolve-Comando {
+    # Uma linha do catalogo vira programa + lista de argumentos.
+    param($Catalogo, [string]$Linha)
+
+    $partes = @(Split-Argumentos (Expand-Modelo -Texto $Linha -Mapa (Get-Ambiente -Catalogo $Catalogo)))
+    $argumentos = @()
+    if ($partes.Count -gt 1) { $argumentos = $partes[1..($partes.Count - 1)] }
+    return @{ programa = (Resolve-Caminho $partes[0]); argumentos = $argumentos }
+}
+
+
+function Get-EstadoBancos {
+    <#
+      Quem esta no ar. O arquivo sobrevive ao fechamento da interface, entao
+      um banco iniciado ontem continua sendo reconhecido hoje. Processos que
+      morreram sao descartados na leitura, para nao mentir "rodando".
+    #>
+    $estado = @{}
+    if (Test-Path -LiteralPath $ArquivoBancos) {
+        try {
+            $bruto = Get-Content -LiteralPath $ArquivoBancos -Raw -Encoding UTF8 | ConvertFrom-Json
+            foreach ($p in $bruto.PSObject.Properties) {
+                $vivo = Get-Process -Id $p.Value.pid -ErrorAction SilentlyContinue
+                if ($vivo) {
+                    $estado[$p.Name] = @{ pid = $p.Value.pid; porta = $p.Value.porta; desde = $p.Value.desde }
+                }
+            }
+        }
+        catch { }
+    }
+    return $estado
+}
+
+
+function Save-EstadoBancos {
+    param($Estado)
+    try { ($Estado | ConvertTo-Json -Compress) | Set-Content -LiteralPath $ArquivoBancos -Encoding UTF8 }
+    catch { }
+}
+
+
+function Start-Banco {
+    param($Catalogo, [string]$Id)
+
+    $f = $Catalogo.ferramentas | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+    if ($null -eq $f)          { return @{ ok = $false; erro = "Ferramenta desconhecida: $Id" } }
+    if ($null -eq $f.servidor) { return @{ ok = $false; erro = "$($f.nome) nao e um servidor." } }
+    if (-not (Test-Instalada $f)) { return @{ ok = $false; erro = "$($f.nome) nao esta instalado." } }
+
+    $estado = Get-EstadoBancos
+    if ($estado.ContainsKey($Id)) {
+        return @{ ok = $false; erro = "$($f.nome) ja esta rodando (processo $($estado[$Id].pid))." }
+    }
+
+    # MySQL e MariaDB dividem a porta 3360: os dois no ar ao mesmo tempo e
+    # impossivel, e a mensagem precisa dizer isso em vez de deixar o segundo
+    # morrer sozinho com um erro de socket.
+    foreach ($outroId in $estado.Keys) {
+        if ($estado[$outroId].porta -eq $f.servidor.porta) {
+            $outro = $Catalogo.ferramentas | Where-Object { $_.id -eq $outroId } | Select-Object -First 1
+            return @{ ok = $false
+                      erro = "A porta $($f.servidor.porta) ja esta ocupada por $($outro.nome). Pare ele antes." }
+        }
+    }
+
+    try {
+        # Primeira execucao: criar a base. So uma vez, e a marca no disco diz
+        # se ja foi feito.
+        if ($f.primeiraExecucao) {
+            $jaTem = $false
+            if ($f.marcaInicializado) { $jaTem = Test-Path -LiteralPath (Resolve-Caminho $f.marcaInicializado) }
+            if (-not $jaTem) {
+                Write-Host ("  Preparando a base de {0} (primeira vez)..." -f $f.nome)
+                $ini = Resolve-Comando -Catalogo $Catalogo -Linha $f.primeiraExecucao
+                $r = Start-Process $ini.programa -ArgumentList $ini.argumentos -WorkingDirectory $PSScriptRoot -Wait -PassThru -WindowStyle Hidden
+                if ($r.ExitCode -ne 0) { throw ("A preparacao da base falhou (codigo {0})." -f $r.ExitCode) }
+            }
+        }
+
+        $cmd = Resolve-Comando -Catalogo $Catalogo -Linha $f.executar
+        if (-not (Test-Path -LiteralPath $cmd.programa)) {
+            throw ("Executavel nao encontrado: {0}" -f $cmd.programa)
+        }
+
+        $proc = Start-Process $cmd.programa -ArgumentList $cmd.argumentos `
+                    -WorkingDirectory $PSScriptRoot -PassThru -WindowStyle Hidden
+
+        Start-Sleep -Milliseconds 1500
+        if ($proc.HasExited) {
+            throw ("O servidor subiu e caiu na hora (codigo {0}). Confira se a porta esta livre." -f $proc.ExitCode)
+        }
+
+        $estado[$Id] = @{ pid = $proc.Id; porta = $f.servidor.porta; desde = (Get-Date).ToString('s') }
+        Save-EstadoBancos $estado
+        Write-Host ("  {0} no ar na porta {1} (processo {2})" -f $f.nome, $f.servidor.porta, $proc.Id)
+        return @{ ok = $true; nome = $f.nome; pid = $proc.Id; porta = $f.servidor.porta }
+    }
+    catch {
+        return @{ ok = $false; erro = $_.Exception.Message }
+    }
+}
+
+
+function Stop-Banco {
+    param($Catalogo, [string]$Id)
+
+    $f = $Catalogo.ferramentas | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+    if ($null -eq $f) { return @{ ok = $false; erro = "Ferramenta desconhecida: $Id" } }
+
+    $estado = Get-EstadoBancos
+    if (-not $estado.ContainsKey($Id)) { return @{ ok = $false; erro = "$($f.nome) nao esta rodando." } }
+    $numero = $estado[$Id].pid
+
+    try {
+        # Preferir sempre o comando proprio de parada: derrubar um banco no
+        # tapa pode deixar a base inconsistente. O encerramento a forca fica
+        # como ultimo recurso, e o Neo4j em modo console so tem esse caminho.
+        if ($f.parar) {
+            $cmd = Resolve-Comando -Catalogo $Catalogo -Linha $f.parar
+            Start-Process $cmd.programa -ArgumentList $cmd.argumentos -WorkingDirectory $PSScriptRoot -Wait -WindowStyle Hidden -ErrorAction SilentlyContinue | Out-Null
+            for ($i = 0; $i -lt 20; $i++) {
+                if (-not (Get-Process -Id $numero -ErrorAction SilentlyContinue)) { break }
+                Start-Sleep -Milliseconds 500
+            }
+        }
+
+        $aindaVivo = Get-Process -Id $numero -ErrorAction SilentlyContinue
+        $modo = 'pelo comando de parada'
+        if ($aindaVivo) {
+            Stop-Process -Id $numero -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 500
+            $modo = 'encerrado a forca'
+        }
+
+        $estado.Remove($Id)
+        Save-EstadoBancos $estado
+        Write-Host ("  {0} parado ({1})" -f $f.nome, $modo)
+        return @{ ok = $true; nome = $f.nome; modo = $modo }
+    }
+    catch {
+        return @{ ok = $false; erro = $_.Exception.Message }
+    }
+}
+
+
+# ------------------------------------------------------------------
 # Servidor local da interface web
 # ------------------------------------------------------------------
 
@@ -1007,6 +1171,23 @@ function Start-Servidor {
                     Send-Texto $contexto 200 'application/json; charset=utf-8' $texto
                 }
             }
+            elseif ($caminho -eq '/api/banco/iniciar' -or $caminho -eq '/api/banco/parar') {
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                elseif ($contexto.Request.HttpMethod -ne 'POST') {
+                    Send-Texto $contexto 405 'text/plain; charset=utf-8' 'use POST'
+                }
+                else {
+                    $cat = Import-Catalogo
+                    $quem = $contexto.Request.QueryString['id']
+                    if ($caminho -eq '/api/banco/iniciar') { $resultado = Start-Banco -Catalogo $cat -Id $quem }
+                    else                                   { $resultado = Stop-Banco  -Catalogo $cat -Id $quem }
+                    $codigo = 400
+                    if ($resultado.ok) { $codigo = 200 }
+                    Send-Texto $contexto $codigo 'application/json; charset=utf-8' ($resultado | ConvertTo-Json -Compress)
+                }
+            }
             elseif ($caminho -eq '/api/executar') {
                 if ($chaveEnviada -ne $chave) {
                     Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
@@ -1094,6 +1275,35 @@ switch ($Acao) {
 
     'servir' {
         Start-Servidor -Porta $Porta -NaoAbrir:$NaoAbrir
+    }
+
+    'bancos' {
+        $noAr = Get-EstadoBancos
+        Write-Host ''
+        if ($noAr.Count -eq 0) { Write-Host '  Nenhum servidor de banco no ar.' }
+        else {
+            foreach ($k in $noAr.Keys) {
+                $b = $Catalogo.ferramentas | Where-Object { $_.id -eq $k } | Select-Object -First 1
+                Write-Host ('  {0,-12} porta {1,-6} processo {2,-7} desde {3}' -f $b.nome, $noAr[$k].porta, $noAr[$k].pid, $noAr[$k].desde)
+            }
+        }
+        Write-Host ''
+    }
+
+    'iniciar' {
+        if ([string]::IsNullOrWhiteSpace($Id)) { throw 'Informe qual banco. Exemplo: .\devapp.ps1 -Acao iniciar -Id mariadb' }
+        Write-Host ''
+        $r = Start-Banco -Catalogo $catalogo -Id $Id
+        if (-not $r.ok) { Write-Host ('  Falhou: {0}' -f $r.erro) }
+        Write-Host ''
+    }
+
+    'parar' {
+        if ([string]::IsNullOrWhiteSpace($Id)) { throw 'Informe qual banco. Exemplo: .\devapp.ps1 -Acao parar -Id mariadb' }
+        Write-Host ''
+        $r = Stop-Banco -Catalogo $catalogo -Id $Id
+        if (-not $r.ok) { Write-Host ('  Falhou: {0}' -f $r.erro) }
+        Write-Host ''
     }
 
     'instalar' {

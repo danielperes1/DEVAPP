@@ -206,6 +206,12 @@
   .estado.sim i { background: var(--ok); }
   .estado.nao { background: var(--sutil); color: var(--tinta-fraca); }
   .estado.nao i { background: var(--sutil-forte); }
+  .estado.noar { background: var(--acento-luz); color: var(--acento); }
+  .estado.noar i { background: var(--acento); animation: pulsa 1.6s ease-in-out infinite; }
+  @keyframes pulsa { 50% { opacity: .25; } }
+
+  .agir.parar { border-color: var(--perigo); color: var(--perigo); background: var(--perigo-luz); }
+  .agir.parar:hover { background: var(--perigo); color: #fff; }
 
   .etiquetas { display: flex; flex-wrap: wrap; gap: 6px; }
   .etiqueta {
@@ -569,8 +575,8 @@
           '<div class="nome">' + f.Nome + '</div>' +
           '<div class="versao">' + f.Versao + '</div>' +
         '</div>' +
-        '<span class="estado ' + (f.Instalada ? 'sim' : 'nao') + '"><i></i>' +
-          (f.Instalada ? 'instalado' : 'ausente') +
+        '<span class="estado ' + (f.Rodando ? 'noar' : (f.Instalada ? 'sim' : 'nao')) + '"><i></i>' +
+          (f.Rodando ? 'no ar' : (f.Instalada ? 'instalado' : 'ausente')) +
         '</span>' +
       '</div>';
 
@@ -601,14 +607,17 @@
       html += '<div class="servidor">' + dados.join('') + '</div>';
     }
 
-    // Servidores de banco precisam de janela e ciclo de vida proprios,
-    // entao ainda nao ganham botao.
-    const podeAbrir = f.Instalada && f.Executar && !f.Servidor;
+    const ehBanco   = !!f.Servidor;
+    const podeAbrir = f.Instalada && f.Executar && !ehBanco;
     const podeBaixar = !f.Instalada && f.Instalavel;
+    const podeSubir = f.Instalada && ehBanco && !f.Rodando;
+    const podeParar = f.Instalada && ehBanco && f.Rodando;
 
-    if (podeAbrir || podeBaixar) {
+    if (podeAbrir || podeBaixar || podeSubir || podeParar) {
       html += '<div class="acoes">';
-      if (podeAbrir) html += '<button class="agir tocar">' + svg('g-tocar', 13) + 'Executar</button>';
+      if (podeAbrir)  html += '<button class="agir tocar">' + svg('g-tocar', 13) + 'Executar</button>';
+      if (podeSubir)  html += '<button class="agir subir">' + svg('g-tocar', 13) + 'Iniciar</button>';
+      if (podeParar)  html += '<button class="agir parar">' + svg('g-desligar', 13) + 'Parar</button>';
       if (podeBaixar) html += '<button class="agir baixar">' + svg('g-baixar', 13) + 'Instalar</button>';
       html += '</div>';
     }
@@ -621,7 +630,41 @@
     const bBaixar = div.querySelector('.agir.baixar');
     if (bBaixar) bBaixar.addEventListener('click', () => instalar(f, div));
 
+    const bSubir = div.querySelector('.agir.subir');
+    if (bSubir) bSubir.addEventListener('click', (ev) => mandarBanco(f, 'iniciar', ev.currentTarget));
+
+    const bParar = div.querySelector('.agir.parar');
+    if (bParar) bParar.addEventListener('click', (ev) => mandarBanco(f, 'parar', ev.currentTarget));
+
     return div;
+  }
+
+  async function mandarBanco(f, acao, botao) {
+    const rotulo = botao.innerHTML;
+    botao.disabled = true;
+    botao.innerHTML = svg(acao === 'iniciar' ? 'g-tocar' : 'g-desligar', 13) +
+                      (acao === 'iniciar' ? 'Subindo...' : 'Parando...');
+    try {
+      const r = await fetch('/api/banco/' + acao + '?t=' + encodeURIComponent(chave) + '&id=' + encodeURIComponent(f.Id),
+                            { method: 'POST' });
+      const corpo = await r.json();
+      if (r.ok) {
+        if (acao === 'iniciar') {
+          avisar(f.Nome + ' no ar', 'Porta ' + f.Servidor.porta + ', processo ' + corpo.pid + '.', false);
+        } else {
+          avisar(f.Nome + ' parado', corpo.modo === 'encerrado a forca'
+            ? 'Não respondeu ao comando de parada e foi encerrado à força.'
+            : 'Encerrado pelo comando próprio, sem risco para os dados.', false);
+        }
+      } else {
+        avisar('Não consegui ' + acao + ' ' + f.Nome, corpo.erro || ('HTTP ' + r.status), true);
+      }
+    } catch (e) {
+      avisar('Falha ao falar com o servidor', e.message, true);
+    }
+    botao.disabled = false;
+    botao.innerHTML = rotulo;
+    carregar();
   }
 
   // ---------- instalacao ----------
