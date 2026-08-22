@@ -19,6 +19,7 @@
     json    - devolve o status em JSON (formato que a interface vai consumir)
     doutor  - aponta pendencias e riscos registrados no catalogo
     bancos  - mostra quais servidores de banco estao no ar
+    remover - apaga a pasta de uma ferramenta instalada (-Id gradle)
     extensoes - lista as categorias de extensoes do VS Code, ou instala uma (-Id java)
     iniciar - sobe um servidor de banco (-Id mariadb)
     parar   - encerra um servidor de banco (-Id mariadb)
@@ -39,7 +40,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir', 'instalar', 'iniciar', 'parar', 'bancos', 'extensoes')]
+    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir', 'instalar', 'iniciar', 'parar', 'bancos', 'extensoes', 'remover')]
     [string]$Acao = 'status',
 
     [string]$Id,
@@ -831,6 +832,72 @@ function Install-Ferramenta {
 
 
 # ------------------------------------------------------------------
+# Remocao
+# ------------------------------------------------------------------
+
+# Pastas do proprio projeto. Nenhuma remocao pode encostar nelas, aconteca
+# o que acontecer com o catalogo.
+$PastasIntocaveis = @('.git', 'ui', 'scripts', 'wget', 'sevenzip', 'icons', 'cache')
+
+function Uninstall-Ferramenta {
+    <#
+      Apaga a pasta de destino de uma ferramenta. Esta e a unica funcao do
+      DEVAPP que destroi dados, entao ela desconfia do catalogo em vez de
+      obedece-lo: confere que o caminho esta mesmo dentro da pasta do DEVAPP,
+      que nao e a raiz e que nao e uma pasta do projeto. Um "destino" errado
+      no JSON nao pode virar perda de arquivo.
+    #>
+    param($Catalogo, [string]$Id)
+
+    $f = $Catalogo.ferramentas | Where-Object { $_.id -eq $Id } | Select-Object -First 1
+    if ($null -eq $f) { return @{ ok = $false; erro = "Ferramenta desconhecida: $Id" } }
+    if (-not (Test-Instalada $f)) { return @{ ok = $false; erro = "$($f.nome) nao esta instalado." } }
+
+    $destino = [string]$f.instalacao.destino
+    if ([string]::IsNullOrWhiteSpace($destino) -or $destino -eq '.' -or $destino -match '\.\.') {
+        return @{ ok = $false
+                  erro = "$($f.nome) fica na raiz do DEVAPP, nao numa pasta propria. Apagar teria que levar tudo junto, entao remova o arquivo na mao." }
+    }
+
+    $primeiro = ($destino -split '[\\/]')[0]
+    if ($PastasIntocaveis -contains $primeiro) {
+        return @{ ok = $false; erro = "Recusado: '$primeiro' e uma pasta do proprio DEVAPP." }
+    }
+
+    $alvo = Resolve-Caminho $destino
+    $raiz = [IO.Path]::GetFullPath($PSScriptRoot)
+    $cheio = [IO.Path]::GetFullPath($alvo)
+    if ($cheio -eq $raiz -or -not $cheio.StartsWith($raiz + [IO.Path]::DirectorySeparatorChar, 'OrdinalIgnoreCase')) {
+        return @{ ok = $false; erro = "Recusado: '$destino' aponta para fora da pasta do DEVAPP." }
+    }
+    if (-not (Test-Path -LiteralPath $cheio)) {
+        return @{ ok = $false; erro = "A pasta '$destino' nem existe." }
+    }
+
+    # Um banco no ar segura os proprios arquivos, e apagar por baixo dele
+    # deixaria processo orfao servindo dados que ja nao existem.
+    if ($null -ne $f.servidor) {
+        $noAr = Get-EstadoBancos
+        if ($noAr.ContainsKey($Id)) {
+            return @{ ok = $false; erro = "$($f.nome) esta rodando. Pare o servidor antes de remover." }
+        }
+    }
+
+    try {
+        $mb = [math]::Round((Get-ChildItem -LiteralPath $cheio -Recurse -File -ErrorAction SilentlyContinue |
+                             Measure-Object Length -Sum).Sum / 1MB)
+        Remove-Item -LiteralPath $cheio -Recurse -Force -ErrorAction Stop
+        Write-Host ("  {0} removido ({1} MB liberados)" -f $f.nome, $mb)
+        return @{ ok = $true; nome = $f.nome; megabytes = $mb }
+    }
+    catch {
+        return @{ ok = $false
+                  erro = ("Nao consegui apagar: {0}. Algum programa pode estar com arquivos abertos." -f $_.Exception.Message) }
+    }
+}
+
+
+# ------------------------------------------------------------------
 # Ambiente e execucao de ferramentas
 # ------------------------------------------------------------------
 
@@ -1431,6 +1498,20 @@ function Start-Servidor {
                     Send-Texto $contexto 200 'application/json; charset=utf-8' $texto
                 }
             }
+            elseif ($caminho -eq '/api/remover') {
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                elseif ($contexto.Request.HttpMethod -ne 'POST') {
+                    Send-Texto $contexto 405 'text/plain; charset=utf-8' 'use POST'
+                }
+                else {
+                    $resultado = Uninstall-Ferramenta -Catalogo (Import-Catalogo) -Id $contexto.Request.QueryString['id']
+                    $codigo = 400
+                    if ($resultado.ok) { $codigo = 200 }
+                    Send-Texto $contexto $codigo 'application/json; charset=utf-8' ($resultado | ConvertTo-Json -Compress)
+                }
+            }
             elseif ($caminho -eq '/api/terminal') {
                 if ($chaveEnviada -ne $chave) {
                     Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
@@ -1599,6 +1680,16 @@ switch ($Acao) {
             if (-not $r.ok) { Write-Host ('  Falhou: {0}' -f $r.erro) }
             Write-Host ''
         }
+    }
+
+    'remover' {
+        if ([string]::IsNullOrWhiteSpace($Id)) {
+            throw 'Informe o que remover. Exemplo: .\devapp.ps1 -Acao remover -Id gradle'
+        }
+        Write-Host ''
+        $r = Uninstall-Ferramenta -Catalogo $catalogo -Id $Id
+        if (-not $r.ok) { Write-Host ('  Falhou: {0}' -f $r.erro) }
+        Write-Host ''
     }
 
     'bancos' {

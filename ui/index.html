@@ -210,6 +210,8 @@
   .estado.noar i { background: var(--acento); animation: pulsa 1.6s ease-in-out infinite; }
   @keyframes pulsa { 50% { opacity: .25; } }
 
+  .agir.remover { border-color: var(--borda); color: var(--tinta-fraca); background: transparent; padding: 6px 9px; margin-left: auto; }
+  .agir.remover:hover { border-color: var(--perigo); color: #fff; background: var(--perigo); }
   .agir.parar { border-color: var(--perigo); color: var(--perigo); background: var(--perigo-luz); }
   .agir.parar:hover { background: var(--perigo); color: #fff; }
 
@@ -340,6 +342,7 @@
     <g id="g-lupa"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4 4"/></g>
     <g id="g-raio"><path d="M13.2 2.5 4.8 13.4h6l-.9 8.1 8.4-10.9h-6z"/></g>
     <g id="g-desligar"><path d="M12 3.2v8.4"/><path d="M17.7 6.3a8 8 0 1 1-11.4 0"/></g>
+    <g id="g-lixo"><path d="M4.2 6.6h15.6"/><path d="M9.4 6.6V4.9a1.2 1.2 0 0 1 1.2-1.2h2.8a1.2 1.2 0 0 1 1.2 1.2v1.7"/><path d="M6.6 6.6v12.5a1.4 1.4 0 0 0 1.4 1.4h8a1.4 1.4 0 0 0 1.4-1.4V6.6"/><path d="M10.2 10.4v6M13.8 10.4v6"/></g>
     <g id="g-link"><path d="M13.4 4.6h6v6"/><path d="M19.4 4.6 11 13"/><path d="M18.2 13.6v4.8a1.8 1.8 0 0 1-1.8 1.8H5.6a1.8 1.8 0 0 1-1.8-1.8V7.6a1.8 1.8 0 0 1 1.8-1.8h4.8"/></g>
     <g id="g-servidor"><rect x="3.2" y="4.2" width="17.6" height="6.4" rx="1.7"/><rect x="3.2" y="13.4" width="17.6" height="6.4" rx="1.7"/><circle cx="7" cy="7.4" r=".85" fill="currentColor" stroke="none"/><circle cx="7" cy="16.6" r=".85" fill="currentColor" stroke="none"/><path d="M10.6 7.4h6.6M10.6 16.6h6.6"/></g>
     <g id="g-sol"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.2v2.5M12 19.3v2.5M2.2 12h2.5M19.3 12h2.5M5.1 5.1l1.8 1.8M17.1 17.1l1.8 1.8M18.9 5.1l-1.8 1.8M6.9 17.1l-1.8 1.8"/></g>
@@ -683,6 +686,10 @@
       if (podeSubir)  html += '<button class="agir subir">' + svg('g-tocar', 13) + 'Iniciar</button>';
       if (podeParar)  html += '<button class="agir parar">' + svg('g-desligar', 13) + 'Parar</button>';
       if (podeBaixar) html += '<button class="agir baixar">' + svg('g-baixar', 13) + 'Instalar</button>';
+      // Remover fica por último e discreto: é a única ação que destrói algo.
+      if (f.Instalada && f.Instalavel && !f.Rodando) {
+        html += '<button class="agir remover" title="Apaga a pasta desta ferramenta">' + svg('g-lixo', 13) + '</button>';
+      }
       html += '</div>';
     }
 
@@ -693,6 +700,9 @@
 
     const bBaixar = div.querySelector('.agir.baixar');
     if (bBaixar) bBaixar.addEventListener('click', () => instalar(f, div));
+
+    const bRemover = div.querySelector('.agir.remover');
+    if (bRemover) bRemover.addEventListener('click', (ev) => remover(f, ev.currentTarget));
 
     const bSubir = div.querySelector('.agir.subir');
     if (bSubir) bSubir.addEventListener('click', (ev) => mandarBanco(f, 'iniciar', ev.currentTarget));
@@ -790,6 +800,32 @@
         carregar();
       }
     }, 900);
+  }
+
+  async function remover(f, botao) {
+    let texto = 'Remover ' + f.Nome + '?
+
+A pasta inteira dela é apagada.';
+    if (f.Servidor) texto += '
+
+ISSO INCLUI OS BANCOS DE DADOS que você criou nela.';
+    texto += '
+
+Dá para instalar de novo depois, com um clique.';
+    if (!confirm(texto)) return;
+
+    botao.disabled = true;
+    try {
+      const r = await fetch('/api/remover?t=' + encodeURIComponent(chave) + '&id=' + encodeURIComponent(f.Id),
+                            { method: 'POST' });
+      const corpo = await r.json();
+      if (r.ok) avisar(f.Nome + ' removido', (corpo.megabytes || 0) + ' MB liberados.', false);
+      else avisar('Não consegui remover ' + f.Nome, corpo.erro || ('HTTP ' + r.status), true);
+    } catch (e) {
+      avisar('Falha ao falar com o servidor', e.message, true);
+    }
+    botao.disabled = false;
+    carregar();
   }
 
   async function mandarBanco(f, acao, botao) {
