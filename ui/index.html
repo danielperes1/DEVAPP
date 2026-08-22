@@ -250,6 +250,11 @@
   }
   .vazio { color: var(--tinta-fraca); padding: 30px 0; text-align: center; }
 
+  a.cartao.atalho { text-decoration: none; color: inherit; }
+  a.cartao.atalho .cabeca { align-items: center; }
+  a.cartao.atalho svg:last-child { color: var(--tinta-fraca); flex-shrink: 0; }
+  a.cartao.atalho:hover svg:last-child { color: var(--marca); }
+
   .acoes { display: flex; gap: 8px; margin-top: auto; padding-top: 4px; }
   .agir {
     font: inherit; font-size: 13px; cursor: pointer;
@@ -335,6 +340,7 @@
     <g id="g-lupa"><circle cx="11" cy="11" r="6.4"/><path d="m15.8 15.8 4 4"/></g>
     <g id="g-raio"><path d="M13.2 2.5 4.8 13.4h6l-.9 8.1 8.4-10.9h-6z"/></g>
     <g id="g-desligar"><path d="M12 3.2v8.4"/><path d="M17.7 6.3a8 8 0 1 1-11.4 0"/></g>
+    <g id="g-link"><path d="M13.4 4.6h6v6"/><path d="M19.4 4.6 11 13"/><path d="M18.2 13.6v4.8a1.8 1.8 0 0 1-1.8 1.8H5.6a1.8 1.8 0 0 1-1.8-1.8V7.6a1.8 1.8 0 0 1 1.8-1.8h4.8"/></g>
     <g id="g-servidor"><rect x="3.2" y="4.2" width="17.6" height="6.4" rx="1.7"/><rect x="3.2" y="13.4" width="17.6" height="6.4" rx="1.7"/><circle cx="7" cy="7.4" r=".85" fill="currentColor" stroke="none"/><circle cx="7" cy="16.6" r=".85" fill="currentColor" stroke="none"/><path d="M10.6 7.4h6.6M10.6 16.6h6.6"/></g>
     <g id="g-sol"><circle cx="12" cy="12" r="4.1"/><path d="M12 2.2v2.5M12 19.3v2.5M2.2 12h2.5M19.3 12h2.5M5.1 5.1l1.8 1.8M17.1 17.1l1.8 1.8M18.9 5.1l-1.8 1.8M6.9 17.1l-1.8 1.8"/></g>
     <g id="g-certo"><path d="M20 6.5 9.4 17.1 4 11.7"/></g>
@@ -390,10 +396,6 @@
     </div>
     <label class="pilula"><input type="checkbox" id="soFaltando"> só as não instaladas</label>
     <button class="pilula" id="atualizar">Atualizar</button>
-    <button class="pilula" id="terminal" title="Abre um prompt com todas as variáveis e caminhos do DEVAPP já carregados">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#g-terminal"/></svg>
-      Terminal
-    </button>
     <button class="pilula" id="tema" title="Alternar entre tema claro e escuro">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use id="temaIcone" href="#g-lua"/></svg>
       <span id="temaRotulo">Escuro</span>
@@ -413,11 +415,12 @@
 
   <div class="avisos" id="avisos"></div>
 
+  <section class="secao" id="secaoAux">
+    <h2>Auxiliares <span class="contagem" id="auxResumo"></span></h2>
+    <div class="grade" id="auxLista"></div>
+  </section>
+
   <footer>
-    <div class="secao">
-      <h2>Ferramentas online</h2>
-      <div class="links" id="links"></div>
-    </div>
     <p class="nota">
       Somente leitura. Esta tela ainda não instala nem executa nada &mdash; ela lê o
       <code>catalogo.json</code> e confere no disco o que já existe.
@@ -558,15 +561,54 @@
     }
 
     desenharExtensoes();
+    desenharAuxiliares();
+  }
 
-    const links = $('links');
-    links.innerHTML = '';
+  // ---------- auxiliares: terminal e ferramentas online ----------
+  function desenharAuxiliares() {
+    const alvo = $('auxLista');
+    alvo.innerHTML = '';
+    $('auxResumo').textContent = (dados.links.length + 1) + ' itens';
+
+    // O terminal ganha cartão próprio: escondido na barra de cima, ninguém
+    // achava. É o equivalente ao "CMD" do menu antigo, com o ambiente inteiro.
+    const term = document.createElement('div');
+    term.className = 'cartao';
+    term.style.setProperty('--marca', '#475569');
+    term.style.setProperty('--marca-suave', 'rgba(71,85,105,.12)');
+    term.innerHTML =
+      '<div class="cabeca">' +
+        '<div class="icone">' + svg('g-terminal', 23) + '</div>' +
+        '<div class="identidade"><div class="nome">Terminal</div>' +
+        '<div class="versao">prompt com o ambiente do DEVAPP</div></div>' +
+      '</div>' +
+      '<div class="acoes"><button class="agir">' + svg('g-tocar', 13) + 'Abrir</button></div>';
+    term.querySelector('.agir').addEventListener('click', abrirTerminal);
+    alvo.appendChild(term);
+
     for (const l of dados.links) {
       const a = document.createElement('a');
+      a.className = 'cartao atalho';
       a.href = l.url; a.target = '_blank'; a.rel = 'noopener';
-      a.innerHTML = svg('g-grafo', 14) + '<span>' + l.nome + '</span>';
-      links.appendChild(a);
+      a.style.setProperty('--marca', '#0b7ec4');
+      a.style.setProperty('--marca-suave', 'rgba(11,126,196,.11)');
+      a.innerHTML =
+        '<div class="cabeca">' +
+          '<div class="icone">' + svg('g-grafo', 23) + '</div>' +
+          '<div class="identidade"><div class="nome">' + l.nome + '</div>' +
+          '<div class="versao">' + l.categoria.toLowerCase() + ' &middot; abre no navegador</div></div>' +
+          svg('g-link', 15) +
+        '</div>';
+      alvo.appendChild(a);
     }
+  }
+
+  async function abrirTerminal() {
+    try {
+      const r = await fetch('/api/terminal?t=' + encodeURIComponent(chave), { method: 'POST' });
+      if (r.ok) avisar('Terminal aberto', 'Com o ambiente do DEVAPP já carregado.', false);
+      else avisar('Não consegui abrir o terminal', 'HTTP ' + r.status, true);
+    } catch (e) { avisar('Falha ao falar com o servidor', e.message, true); }
   }
 
   function cartao(f) {
@@ -909,13 +951,6 @@
   $('atualizar').addEventListener('click', carregar);
   $('encerrar').addEventListener('click', encerrar);
   $('tema').addEventListener('click', () => aplicarTema(escuro() ? 'claro' : 'escuro'));
-  $('terminal').addEventListener('click', async () => {
-    try {
-      const r = await fetch('/api/terminal?t=' + encodeURIComponent(chave), { method: 'POST' });
-      if (r.ok) avisar('Terminal aberto', 'Com o ambiente do DEVAPP já carregado.', false);
-      else avisar('Não consegui abrir o terminal', 'HTTP ' + r.status, true);
-    } catch (e) { avisar('Falha ao falar com o servidor', e.message, true); }
-  });
 
   // Acerta rotulo e icone com o tema que o script do <head> ja aplicou.
   aplicarTema(escuro() ? 'escuro' : 'claro');
