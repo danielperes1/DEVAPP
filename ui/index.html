@@ -389,6 +389,10 @@
     </div>
     <label class="pilula"><input type="checkbox" id="soFaltando"> só as não instaladas</label>
     <button class="pilula" id="atualizar">Atualizar</button>
+    <button class="pilula" id="terminal" title="Abre um prompt com todas as variáveis e caminhos do DEVAPP já carregados">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use href="#g-terminal"/></svg>
+      Terminal
+    </button>
     <button class="pilula" id="tema" title="Alternar entre tema claro e escuro">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><use id="temaIcone" href="#g-lua"/></svg>
       <span id="temaRotulo">Escuro</span>
@@ -902,6 +906,13 @@
   $('atualizar').addEventListener('click', carregar);
   $('encerrar').addEventListener('click', encerrar);
   $('tema').addEventListener('click', () => aplicarTema(escuro() ? 'claro' : 'escuro'));
+  $('terminal').addEventListener('click', async () => {
+    try {
+      const r = await fetch('/api/terminal?t=' + encodeURIComponent(chave), { method: 'POST' });
+      if (r.ok) avisar('Terminal aberto', 'Com o ambiente do DEVAPP já carregado.', false);
+      else avisar('Não consegui abrir o terminal', 'HTTP ' + r.status, true);
+    } catch (e) { avisar('Falha ao falar com o servidor', e.message, true); }
+  });
 
   // Acerta rotulo e icone com o tema que o script do <head> ja aplicou.
   aplicarTema(escuro() ? 'escuro' : 'claro');

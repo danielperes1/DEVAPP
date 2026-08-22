@@ -153,13 +153,13 @@ function Get-Status {
         $implementada = $true
         if ($null -ne $f.implementado) { $implementada = [bool]$f.implementado }
 
-        # Fora dos tipos suportados, sobra quem precisa de mais de um
-        # download (o .NET e o SDK do Android), que ainda nao esta feito.
+        # Mais de um download so esta implementado para zip.
         $instalavel = $false
         $tipo = ''
         if ($null -ne $f.instalacao) {
             $tipo = [string]$f.instalacao.tipo
-            $instalavel = (($TiposSuportados -contains $tipo) -and ($null -eq $f.downloadExtra))
+            $instalavel = ($TiposSuportados -contains $tipo)
+            if ($null -ne $f.downloadExtra -and $tipo -ne 'zip') { $instalavel = $false }
         }
 
         $rodando = $false
@@ -475,6 +475,39 @@ function Expand-SeteZip {
 }
 
 
+function Expand-Pacote {
+    <#
+      Extrai um zip conforme as instrucoes. O pacote pode trazer seu proprio
+      "extrairEm"; se nao trouxer, vale o da instalacao. Sao tres formatos:
+        pastaExtraida  o zip tem uma pasta com nome de versao, que e renomeada
+        extrairEm      o zip nao tem pasta propria, vai direto para dentro dela
+        (nenhum)       o zip ja traz a pasta certa, extrai na raiz do DEVAPP
+    #>
+    param($Ferramenta, $Pacote, [string]$Arquivo, [string]$Temporario, [string]$Id)
+
+    $onde = $Pacote.extrairEm
+    if ([string]::IsNullOrWhiteSpace($onde)) { $onde = $Ferramenta.instalacao.extrairEm }
+
+    if ($Ferramenta.instalacao.pastaExtraida -and $Pacote -eq $Ferramenta.download) {
+        $area = Join-Path $Temporario ('conteudo-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
+        Expand-Zip -Arquivo $Arquivo -Pasta $area
+        $origem = Join-Path $area $Ferramenta.instalacao.pastaExtraida
+        if (-not (Test-Path -LiteralPath $origem)) {
+            throw ("O zip nao trouxe a pasta esperada '{0}'." -f $Ferramenta.instalacao.pastaExtraida)
+        }
+        $destino = Resolve-Caminho $Ferramenta.instalacao.destino
+        Write-Progresso -Id $Id -Etapa 'instalando' -Porcento 92 -Detalhe ('movendo para ' + $Ferramenta.instalacao.destino)
+        Move-Item -LiteralPath $origem -Destination $destino -Force
+    }
+    elseif ($onde) {
+        Expand-Zip -Arquivo $Arquivo -Pasta (Resolve-Caminho $onde)
+    }
+    else {
+        Expand-Zip -Arquivo $Arquivo -Pasta $PSScriptRoot
+    }
+}
+
+
 function Invoke-PosInstalacao {
     <#
       Passos extras do catalogo. Entradas em texto sao tratadas como
@@ -612,9 +645,9 @@ function Install-Ferramenta {
     if ($TiposSuportados -notcontains $tipo) {
         return @{ ok = $false; erro = "Instalacao do tipo '$tipo' ainda nao implementada." }
     }
-    if ($null -ne $f.downloadExtra) {
+    if ($null -ne $f.downloadExtra -and $tipo -ne 'zip') {
         return @{ ok = $false
-                  erro = "$($f.nome) precisa de mais de um download, o que ainda nao esta implementado." }
+                  erro = "$($f.nome) tem mais de um download, o que so esta implementado para zip." }
     }
 
     $temporario = Join-Path $env:TEMP ('devapp-baixa-' + $Id)
@@ -674,25 +707,19 @@ function Install-Ferramenta {
         }
         else {
             Write-Progresso -Id $Id -Etapa 'extraindo' -Porcento 80 -Detalhe ("{0:N1} MB" -f ($bytes / 1MB))
+            Expand-Pacote -Ferramenta $f -Pacote $f.download -Arquivo $baixado -Temporario $temporario -Id $Id
 
-            if ($f.instalacao.pastaExtraida) {
-                # O zip traz uma pasta com nome de versao; extrai fora e renomeia.
-                $area = Join-Path $temporario 'conteudo'
-                Expand-Zip -Arquivo $baixado -Pasta $area
-                $origem = Join-Path $area $f.instalacao.pastaExtraida
-                if (-not (Test-Path -LiteralPath $origem)) {
-                    throw ("O zip nao trouxe a pasta esperada '{0}'." -f $f.instalacao.pastaExtraida)
-                }
-                Write-Progresso -Id $Id -Etapa 'instalando' -Porcento 92 -Detalhe ('movendo para ' + $f.instalacao.destino)
-                Move-Item -LiteralPath $origem -Destination $destino -Force
-            }
-            elseif ($f.instalacao.extrairEm) {
-                # O zip nao tem pasta propria: vai direto para dentro do destino.
-                Expand-Zip -Arquivo $baixado -Pasta (Resolve-Caminho $f.instalacao.extrairEm)
-            }
-            else {
-                # O zip ja traz a pasta certa na raiz.
-                Expand-Zip -Arquivo $baixado -Pasta $PSScriptRoot
+            # Ferramentas que vem em mais de um arquivo (.NET traz SDK e
+            # runtime; o SDK do Android traz cmdline-tools e platform-tools).
+            # Cada pacote pode ter destino proprio.
+            foreach ($extra in @($f.downloadExtra)) {
+                if ($null -eq $extra) { continue }
+                $outro = Join-Path $temporario $extra.arquivo
+                Write-Progresso -Id $Id -Etapa 'baixando' -Porcento 85 -Detalhe $extra.arquivo
+                try   { Get-ArquivoComProgresso -Url $extra.url -Destino $outro -Id $Id -Rotulo $extra.arquivo | Out-Null }
+                catch { Get-ArquivoComWget      -Url $extra.url -Destino $outro -Id $Id -Rotulo $extra.arquivo | Out-Null }
+                Write-Progresso -Id $Id -Etapa 'extraindo' -Porcento 90 -Detalhe $extra.arquivo
+                Expand-Pacote -Ferramenta $f -Pacote $extra -Arquivo $outro -Temporario $temporario -Id $Id
             }
         }
 
@@ -1219,8 +1246,8 @@ function Start-Servidor {
                     elseif ($TiposSuportados -notcontains $alvo.instalacao.tipo) {
                         $recusa = "Instalacao do tipo '$($alvo.instalacao.tipo)' ainda nao implementada."
                     }
-                    elseif ($null -ne $alvo.downloadExtra) {
-                        $recusa = "$($alvo.nome) precisa de mais de um download, ainda nao implementado."
+                    elseif ($null -ne $alvo.downloadExtra -and $alvo.instalacao.tipo -ne 'zip') {
+                        $recusa = "$($alvo.nome) tem mais de um download, o que so esta implementado para zip."
                     }
 
                     if ($recusa -eq '') {
@@ -1228,7 +1255,7 @@ function Start-Servidor {
                         # pedido inteiro: melhor recusar agora do que parar no meio.
                         foreach ($passoId in @(Get-CadeiaInstalacao -Catalogo $cat -Id $pedido)) {
                             $peca = $cat.ferramentas | Where-Object { $_.id -eq $passoId } | Select-Object -First 1
-                            if ($null -eq $peca.instalacao -or $TiposSuportados -notcontains $peca.instalacao.tipo -or $null -ne $peca.downloadExtra) {
+                            if ($null -eq $peca.instalacao -or $TiposSuportados -notcontains $peca.instalacao.tipo) {
                                 $recusa = "$($alvo.nome) depende de $($peca.nome), que ainda nao tem instalacao automatica."
                                 break
                             }
@@ -1269,6 +1296,23 @@ function Start-Servidor {
                         $texto = '{"etapa":"erro","fim":true,"erro":"A instalacao terminou sem concluir. Veja a janela do servidor."}'
                     }
                     Send-Texto $contexto 200 'application/json; charset=utf-8' $texto
+                }
+            }
+            elseif ($caminho -eq '/api/terminal') {
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                elseif ($contexto.Request.HttpMethod -ne 'POST') {
+                    Send-Texto $contexto 405 'text/plain; charset=utf-8' 'use POST'
+                }
+                else {
+                    # O ambiente ja foi aplicado neste processo, e todo filho o
+                    # herda. E o "SEMPRE EXECUTE OS PROGRAMAS AQUI" do menu
+                    # antigo, sem precisar passar pelo menu.
+                    $saudacao = 'title DEVAPP & echo Ambiente do DEVAPP carregado: java, node, python, git e os demais ja respondem aqui. & echo.'
+                    Start-Process 'cmd.exe' -ArgumentList @('/k', $saudacao) -WorkingDirectory $PSScriptRoot | Out-Null
+                    Write-Host '  Terminal aberto com o ambiente do DEVAPP.'
+                    Send-Texto $contexto 200 'application/json; charset=utf-8' '{"ok":true}'
                 }
             }
             elseif ($caminho -eq '/api/extensoes') {

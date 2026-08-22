@@ -335,12 +335,14 @@
       "categoria": "Linguagens e SDKs",
       "download": {
         "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.301/dotnet-sdk-10.0.301-win-x64.zip",
-        "arquivo": "dotnet-sdk-10.0.301-win-x64.zip"
+        "arquivo": "dotnet-sdk-10.0.301-win-x64.zip",
+        "extrairEm": "dotnet"
       },
       "downloadExtra": [
         {
           "url": "https://builds.dotnet.microsoft.com/dotnet/aspnetcore/Runtime/10.0.9/aspnetcore-runtime-10.0.9-win-x64.zip",
-          "arquivo": "aspnetcore-runtime-10.0.9-win-x64.zip"
+          "arquivo": "aspnetcore-runtime-10.0.9-win-x64.zip",
+          "extrairEm": "dotnet"
         }
       ],
       "instalacao": {
@@ -401,21 +403,26 @@
       "categoria": "Linguagens e SDKs",
       "download": {
         "url": "https://dl.google.com/android/repository/commandlinetools-win-14742923_latest.zip",
-        "arquivo": "commandlinetools-win-14742923_latest.zip"
+        "arquivo": "commandlinetools-win-14742923_latest.zip",
+        "extrairEm": "android/sdk/cmdline-tools"
       },
       "downloadExtra": [
         {
           "url": "https://dl.google.com/android/repository/platform-tools-latest-windows.zip",
-          "arquivo": "platform-tools-latest-windows.zip"
+          "arquivo": "platform-tools-latest-windows.zip",
+          "extrairEm": "android/sdk"
         }
       ],
       "instalacao": {
         "tipo": "zip",
-        "extrairEm": "android/sdk",
+        "destino": "android/sdk",
         "posInstalacao": [
-          "extrair commandlinetools em android/sdk/cmdline-tools",
-          "renomear android/sdk/cmdline-tools/cmdline-tools para latest",
-          "extrair platform-tools em android/sdk"
+          {
+            "acao": "renomear",
+            "origem": "android/sdk/cmdline-tools/cmdline-tools",
+            "alvo": "android/sdk/cmdline-tools/latest",
+            "porque": "O zip traz a pasta cmdline-tools dentro de si mesma; o SDK so reconhece se ela se chamar latest."
+          }
         ]
       },
       "detectar": "android/sdk/platform-tools/adb.exe",
