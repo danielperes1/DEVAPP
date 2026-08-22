@@ -910,6 +910,55 @@
       "portatil": true,
       "implementado": false,
       "notas": "As variaveis downyed/arqyed/nomeyed existem no start.bat mas NAO ha rotina de instalacao nem de execucao. Hoje o yEd so aparece como link online no menu Auxiliares."
+    },
+    {
+      "id": "mysql-workbench",
+      "nome": "MySQL Workbench",
+      "versao": "8.0.43",
+      "categoria": "Clientes de banco",
+      "download": {
+        "url": "https://dev.mysql.com/get/Downloads/MySQLGUITools/mysql-workbench-community-8.0.43-winx64.msi",
+        "arquivo": "mysql-workbench-community-8.0.43-winx64.msi"
+      },
+      "instalacao": {
+        "tipo": "msi-admin",
+        "destino": "workbench",
+        "limparAntes": true
+      },
+      "detectar": "workbench/PFiles64/MySQL/MySQL Workbench 8.0 CE/MySQLWorkbench.exe",
+      "detectarInferido": false,
+      "executar": "\"workbench/PFiles64/MySQL/MySQL Workbench 8.0 CE/MySQLWorkbench.exe\"",
+      "env": {
+        "WORKBENCH_HOME": "workbench"
+      },
+      "path": [],
+      "portatil": true,
+      "notas": "Instalacao administrativa (msiexec /a): so desempacota, nao registra no Windows, do mesmo jeito que o MongoDB. O dev.mysql.com recusa o download nativo com 403, entao a segunda tentativa via wget e quem resolve. O msiexec /a recria a arvore de Arquivos de Programas dentro do destino, entao o executavel fica em PFiles64/MySQL/MySQL Workbench 8.0 CE, e nao na raiz."
+    },
+    {
+      "id": "usbwebserver",
+      "nome": "USBWebserver",
+      "versao": "8.6",
+      "categoria": "Servidores web",
+      "download": {
+        "url": "https://www.usbwebserver.net/downloads/USBWebserver%20v8.6.zip",
+        "arquivo": "USBWebserver-8.6.zip"
+      },
+      "instalacao": {
+        "tipo": "zip",
+        "extrairEm": "usbwebserver",
+        "destino": "usbwebserver",
+        "limparAntes": true
+      },
+      "detectar": "usbwebserver/usbwebserver.exe",
+      "detectarInferido": false,
+      "executar": "usbwebserver/usbwebserver.exe",
+      "env": {
+        "USBWEBSERVER_HOME": "usbwebserver"
+      },
+      "path": [],
+      "portatil": true,
+      "notas": "Pacote portatil com Apache, PHP, MySQL e phpMyAdmin, feito para pendrive. Apache na porta 8080 e MySQL na 3307, sem conflito com os bancos do DEVAPP. Os sites ficam em usbwebserver/root. Nao entra como 'servidor' do catalogo porque tem janela propria para ligar e desligar os servicos. A versao 8.6.2 nao existe na origem oficial: aquele endereco devolve pagina HTML, nao arquivo."
     }
   ],
   "linksExternos": [
