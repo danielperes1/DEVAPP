@@ -637,8 +637,8 @@
       },
       "detectar": "mariadb/bin/mysql_install_db.exe",
       "detectarInferido": false,
-      "executar": "mariadb/bin/mysqld.exe --port=3360 --console",
-      "primeiraExecucao": "mariadb/bin/mysql_install_db.exe --password=SECRET",
+      "executar": "mariadb/bin/mysqld.exe --port=3360 --console --datadir={MARIADB_HOME}/data --plugin-dir={MARIADB_HOME}/lib/plugin",
+      "primeiraExecucao": "mariadb/bin/mysql_install_db.exe --password=SECRET --datadir={MARIADB_HOME}/data",
       "servidor": {
         "porta": 3360,
         "usuario": "root",
@@ -649,7 +649,7 @@
       },
       "path": [],
       "portatil": true,
-      "notas": "Divide a porta 3360 com o MySQL.",
+      "notas": "Divide a porta 3360 com o MySQL. PORTABILIDADE: o mysql_install_db grava o caminho absoluto em data/my.ini na primeira execucao. Sem passar --datadir e --plugin-dir na linha de comando, mover a pasta do DEVAPP quebra o MariaDB, porque ele continua procurando os dados no caminho antigo. Comprovado: uma copia rodando em outro diretorio respondia datadir apontando para a pasta original. Argumento de linha de comando vence o arquivo de configuracao.",
       "marcaInicializado": "mariadb/data/mysql",
       "parar": "mariadb/bin/mysqladmin.exe --port=3360 --user=root --password=SECRET shutdown"
     },
@@ -938,15 +938,15 @@
     {
       "id": "usbwebserver",
       "nome": "USBWebserver",
-      "versao": "8.6",
+      "versao": "8.6.2",
       "categoria": "Servidores web",
       "download": {
-        "url": "https://www.usbwebserver.net/downloads/USBWebserver%20v8.6.zip",
-        "arquivo": "USBWebserver-8.6.zip"
+        "url": "https://usbwebserver.yura.mk.ua/usbwebserver_v8.6.2.zip",
+        "arquivo": "usbwebserver_v8.6.2.zip",
+        "sha256": "d7f86400445b6d74530827cf3c7bcb73cd0d3815dd8a887387996a8c8687d149"
       },
       "instalacao": {
         "tipo": "zip",
-        "extrairEm": "usbwebserver",
         "destino": "usbwebserver",
         "limparAntes": true
       },
@@ -958,7 +958,7 @@
       },
       "path": [],
       "portatil": true,
-      "notas": "Pacote portatil com Apache, PHP, MySQL e phpMyAdmin, feito para pendrive. Apache na porta 8080 e MySQL na 3307, sem conflito com os bancos do DEVAPP. Os sites ficam em usbwebserver/root. Nao entra como 'servidor' do catalogo porque tem janela propria para ligar e desligar os servicos. A versao 8.6.2 nao existe na origem oficial: aquele endereco devolve pagina HTML, nao arquivo."
+      "notas": "Pacote portatil com Apache, PHP, MySQL e phpMyAdmin, feito para pendrive. Os sites ficam em usbwebserver/root. Vem configurado com Apache na porta 80 e MySQL na 3306 (a 8.6 usava 8080 e 3307). Nao conflita com os bancos do DEVAPP, mas sao as portas mais disputadas do Windows: se nao subir, provavelmente ha outro servico nelas. Da para mudar na propria janela do programa. Nao entra como \"servidor\" do catalogo porque tem janela propria para ligar e desligar os servicos. PROCEDENCIA: a versao 8.6.2 nao existe em usbwebserver.net, que so publica a 8.6; esta vem de um espelho de terceiros indicado pelo Daniel. A favor dele: o usbwebserver.exe e byte a byte identico ao da 8.6 oficial, e a estrutura de pastas e a mesma; Apache e MySQL diferem, o que e esperado numa versao mais nova. Nao ha checksum oficial para conferir, entao o sha256 do arquivo fica registrado aqui como referencia para detectar troca futura."
     }
   ],
   "linksExternos": [
