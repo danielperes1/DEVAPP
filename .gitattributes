@@ -1,2 +1,2 @@
 *.bat text eol=crlf
-start.bat export-subst
+start-classico.bat export-subst

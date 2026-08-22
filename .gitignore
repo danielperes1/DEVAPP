@@ -15,7 +15,7 @@
 !.gitignore
 !README.md
 !start.bat
+!start-classico.bat
 !settings.json
 !catalogo.json
 !devapp.ps1
-!devapp.bat

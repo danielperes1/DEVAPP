@@ -53,6 +53,9 @@ echo   Esta janela e o servidor: deixe ela aberta enquanto
 echo   estiver usando. Para sair, use o botao "Encerrar
 echo   servidor" na pagina, ou feche esta janela.
 echo.
+echo   O menu antigo, em texto, continua disponivel em
+echo   start-classico.bat.
+echo.
 
 :: -ExecutionPolicy Bypass e obrigatorio, nao e atalho: quando o DEVAPP
 :: e baixado do GitHub, o Windows marca o .ps1 como vindo da internet e
