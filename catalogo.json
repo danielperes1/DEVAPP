@@ -899,5 +899,100 @@
       "pasta": "sevenzip",
       "notas": "Versionado no repositorio. Usado para todas as extracoes."
     }
+  ],
+  "_extensoesVSCode": "Extensoes por categoria, extraidas das rotinas InstalarExt* do start.bat. A opcao TODAS de la e exatamente a uniao destas categorias, conferida na extracao.",
+  "extensoesVSCode": [
+    {
+      "id": "java",
+      "nome": "Java / Spring",
+      "itens": [
+        "redhat.java",
+        "vscjava.vscode-java-debug",
+        "vscjava.vscode-java-dependency",
+        "vscjava.vscode-java-pack",
+        "vscjava.vscode-java-test",
+        "vscjava.vscode-maven",
+        "vscjava.vscode-spring-initializr",
+        "vscjava.vscode-spring-boot-dashboard",
+        "vscjava.vscode-gradle",
+        "vmware.vscode-spring-boot",
+        "vmware.vscode-boot-dev-pack",
+        "redhat.vscode-community-server-connector",
+        "redhat.vscode-rsp-ui",
+        "redhat.vscode-server-connector",
+        "redhat.vscode-xml",
+        "juhahinkula.thymeleaf",
+        "samuel-weinhardt.vscode-jsp-lang"
+      ]
+    },
+    {
+      "id": "frontend",
+      "nome": "Frontend (HTML, CSS, JS, Vue, React)",
+      "itens": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "formulahendry.auto-close-tag",
+        "formulahendry.auto-rename-tag",
+        "formulahendry.code-runner",
+        "ritwickdey.liveserver",
+        "zignd.html-css-class-completion",
+        "mrmlnc.vscode-scss",
+        "vue.volar",
+        "wscats.vue",
+        "hollowtree.vue-snippets",
+        "dsznajder.es7-react-js-snippets",
+        "jakewilson.vscode-cdnjs"
+      ]
+    },
+    {
+      "id": "python",
+      "nome": "Python",
+      "itens": [
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    },
+    {
+      "id": "dotnet",
+      "nome": ".NET / C#",
+      "itens": [
+        "ms-dotnettools.csharp",
+        "ms-dotnettools.vscode-dotnet-runtime",
+        "formulahendry.dotnet",
+        "jmrog.vscode-nuget-package-manager"
+      ]
+    },
+    {
+      "id": "flutter",
+      "nome": "Flutter / Dart",
+      "itens": [
+        "dart-code.dart-code",
+        "dart-code.flutter",
+        "alexisvt.flutter-snippets",
+        "rexthedev.flutter-preview"
+      ]
+    },
+    {
+      "id": "utilitarios",
+      "nome": "Utilitarios (Git, Markdown, temas)",
+      "itens": [
+        "eamodio.gitlens",
+        "streetsidesoftware.code-spell-checker",
+        "aaron-bond.better-comments",
+        "gruntfuggly.todo-tree",
+        "yzhang.markdown-all-in-one",
+        "pkief.material-icon-theme",
+        "vscode-icons-team.vscode-icons",
+        "editorconfig.editorconfig",
+        "christian-kohler.npm-intellisense",
+        "christian-kohler.path-intellisense",
+        "mechatroner.rainbow-csv",
+        "grogdunn.netbeans-keybindings",
+        "obrejla.netbeans-light-theme",
+        "marp-team.marp-vscode",
+        "kino6.markdown-studio-local",
+        "katsuyuzu.marp-to-editable-pptx"
+      ]
+    }
   ]
 }

@@ -400,6 +400,12 @@
   </div>
 
   <main id="conteudo"></main>
+
+  <section class="secao" id="secaoExt" hidden>
+    <h2>Extensões do VS Code <span class="contagem" id="extResumo"></span></h2>
+    <div class="grade" id="extLista"></div>
+  </section>
+
   <div class="avisos" id="avisos"></div>
 
   <footer>
@@ -544,6 +550,8 @@
       alvo.appendChild(secao);
     }
 
+    desenharExtensoes();
+
     const links = $('links');
     links.innerHTML = '';
     for (const l of dados.links) {
@@ -637,6 +645,95 @@
     if (bParar) bParar.addEventListener('click', (ev) => mandarBanco(f, 'parar', ev.currentTarget));
 
     return div;
+  }
+
+  // ---------- extensões do VS Code ----------
+  function desenharExtensoes() {
+    const secao = $('secaoExt');
+    const cats = dados.extensoes || [];
+    const vscode = dados.ferramentas.find(x => x.Id === 'vscode');
+
+    if (!cats.length) { secao.hidden = true; return; }
+    secao.hidden = false;
+
+    const total = cats.reduce((s, c) => s + c.Total, 0);
+    const prontas = cats.reduce((s, c) => s + c.Instaladas, 0);
+    $('extResumo').textContent = prontas + '/' + total;
+
+    const alvo = $('extLista');
+    alvo.innerHTML = '';
+
+    if (vscode && !vscode.Instalada) {
+      alvo.innerHTML = '<p class="vazio">Instale o Visual Studio Code para gerenciar as extensões por aqui.</p>';
+      return;
+    }
+
+    for (const c of cats) {
+      const completa = c.Instaladas === c.Total;
+      const div = document.createElement('div');
+      div.className = 'cartao';
+      div.style.setProperty('--marca', '#0065A9');
+      div.style.setProperty('--marca-suave', 'rgba(0,101,169,.11)');
+
+      let html =
+        '<div class="cabeca">' +
+          '<div class="icone">' + svg('g-code', 23) + '</div>' +
+          '<div class="identidade"><div class="nome">' + c.Nome + '</div>' +
+          '<div class="versao">' + c.Instaladas + ' de ' + c.Total + ' instaladas</div></div>' +
+          '<span class="estado ' + (completa ? 'sim' : 'nao') + '"><i></i>' +
+            (completa ? 'completa' : (c.Total - c.Instaladas) + ' faltando') +
+          '</span>' +
+        '</div>' +
+        '<div class="obra" style="margin-top:0"><div class="calha"><i style="width:' +
+          Math.round(c.Instaladas / c.Total * 100) + '%"></i></div></div>';
+
+      if (!completa) {
+        html += '<div class="acoes"><button class="agir baixar">' + svg('g-baixar', 13) +
+                'Instalar ' + (c.Total - c.Instaladas) + ' faltantes</button></div>';
+      }
+
+      div.innerHTML = html;
+      const b = div.querySelector('.agir');
+      if (b) b.addEventListener('click', () => instalarExtensoes(c, div, b));
+      alvo.appendChild(div);
+    }
+  }
+
+  async function instalarExtensoes(c, cartao, botao) {
+    if (emObra) { avisar('Uma instalação já está em andamento', 'Espere ela terminar.', true); return; }
+    emObra = c.Id;
+    botao.disabled = true;
+    pintarObra(cartao, 'iniciando', -1, c.Nome, 1, 1);
+
+    try {
+      const r = await fetch('/api/extensoes?t=' + encodeURIComponent(chave) + '&categoria=' + encodeURIComponent(c.Id),
+                            { method: 'POST' });
+      const corpo = await r.json();
+      if (!r.ok) throw new Error(corpo.erro || ('HTTP ' + r.status));
+    } catch (e) {
+      emObra = null;
+      avisar('Não consegui iniciar', e.message, true);
+      desenhar();
+      return;
+    }
+
+    const relogio = setInterval(async () => {
+      let p;
+      try {
+        const resp = await fetch('/api/progresso?t=' + encodeURIComponent(chave), { cache: 'no-store' });
+        p = await resp.json();
+      } catch (e) { return; }
+
+      pintarObra(cartao, p.etapa || 'trabalhando', (p.porcento === undefined ? -1 : p.porcento), p.detalhe, 1, 1);
+
+      if (p.fim) {
+        clearInterval(relogio);
+        emObra = null;
+        if (p.erro) avisar('Falhou em ' + c.Nome, p.erro, true);
+        else avisar('Extensões de ' + c.Nome, p.detalhe || 'Concluído.', false);
+        carregar();
+      }
+    }, 900);
   }
 
   async function mandarBanco(f, acao, botao) {

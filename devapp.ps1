@@ -19,6 +19,7 @@
     json    - devolve o status em JSON (formato que a interface vai consumir)
     doutor  - aponta pendencias e riscos registrados no catalogo
     bancos  - mostra quais servidores de banco estao no ar
+    extensoes - lista as categorias de extensoes do VS Code, ou instala uma (-Id java)
     iniciar - sobe um servidor de banco (-Id mariadb)
     parar   - encerra um servidor de banco (-Id mariadb)
     servir  - sobe a interface web local e abre o navegador
@@ -38,7 +39,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir', 'instalar', 'iniciar', 'parar', 'bancos')]
+    [ValidateSet('status', 'env', 'path', 'json', 'doutor', 'servir', 'instalar', 'iniciar', 'parar', 'bancos', 'extensoes')]
     [string]$Acao = 'status',
 
     [string]$Id,
@@ -839,6 +840,104 @@ function Start-Ferramenta {
 
 
 # ------------------------------------------------------------------
+# Extensoes do VS Code
+# ------------------------------------------------------------------
+
+function Get-ExtensoesInstaladas {
+    <#
+      O VS Code guarda cada extensao numa pasta "publicador.nome-versao", e
+      as que tem build por plataforma ganham sufixo depois disso:
+
+        eamodio.gitlens-19.0.1
+        ms-python.python-2026.4.0-win32-x64
+
+      Por isso o corte nao pode ser no ultimo hifen (viraria
+      "ms-python.python-2026.4.0-win32"): o identificador e tudo que vem antes
+      do numero de versao. E a informacao que o menu antigo nunca teve: la,
+      reinstalar uma categoria refazia tudo as cegas.
+    #>
+    $pasta = Resolve-Caminho 'vscode/extensions'
+    $achadas = New-Object System.Collections.Generic.List[string]
+    if (-not (Test-Path -LiteralPath $pasta)) { return $achadas }
+
+    foreach ($d in (Get-ChildItem -LiteralPath $pasta -Directory -ErrorAction SilentlyContinue)) {
+        if ($d.Name -match '^(.+)-\d+\.\d+\.\d+') {
+            $id = $Matches[1]
+            if (-not $achadas.Contains($id)) { [void]$achadas.Add($id) }
+        }
+    }
+    return $achadas
+}
+
+
+function Get-CategoriasExtensoes {
+    param($Catalogo)
+
+    $instaladas = @(Get-ExtensoesInstaladas)
+    $lista = New-Object System.Collections.Generic.List[object]
+
+    foreach ($cat in $Catalogo.extensoesVSCode) {
+        $itens = @($cat.itens)
+        $faltando = @($itens | Where-Object { $instaladas -notcontains $_ })
+        $lista.Add([pscustomobject]@{
+            Id        = $cat.id
+            Nome      = $cat.nome
+            Total     = $itens.Count
+            Instaladas = ($itens.Count - $faltando.Count)
+            Faltando  = $faltando
+        })
+    }
+    return $lista
+}
+
+
+function Install-Extensoes {
+    param($Catalogo, [string]$Categoria)
+
+    $vscode = Resolve-Caminho 'vscode/bin/code.cmd'
+    if (-not (Test-Path -LiteralPath $vscode)) {
+        return @{ ok = $false; erro = 'O VS Code do DEVAPP nao esta instalado.' }
+    }
+
+    $cat = $Catalogo.extensoesVSCode | Where-Object { $_.id -eq $Categoria } | Select-Object -First 1
+    if ($null -eq $cat) { return @{ ok = $false; erro = "Categoria desconhecida: $Categoria" } }
+
+    $instaladas = @(Get-ExtensoesInstaladas)
+    $faltando = @($cat.itens | Where-Object { $instaladas -notcontains $_ })
+
+    if ($faltando.Count -eq 0) {
+        Write-Progresso -Id $Categoria -Etapa 'pronto' -Porcento 100 -Detalhe ('Nada a fazer em ' + $cat.nome) -Fim
+        return @{ ok = $true; nome = $cat.nome; instaladas = 0 }
+    }
+
+    $dirExt = Resolve-Caminho 'vscode/extensions'
+    $dirUsr = Resolve-Caminho 'vscode/userdir'
+    $feitas = 0
+    $falhas = New-Object System.Collections.Generic.List[string]
+
+    for ($i = 0; $i -lt $faltando.Count; $i++) {
+        $ext = $faltando[$i]
+        $pct = [int](($i * 100) / $faltando.Count)
+        Write-Progresso -Id $Categoria -Etapa 'instalando' -Porcento $pct `
+            -Detalhe ("{0}  ({1} de {2})" -f $ext, ($i + 1), $faltando.Count)
+
+        # Uma de cada vez: no start.bat elas eram encadeadas com &&, entao a
+        # primeira que falhasse levava junto todas as seguintes, em silencio.
+        $r = Start-Process 'cmd.exe' -ArgumentList @('/c', $vscode,
+                '--extensions-dir', $dirExt, '--user-data-dir', $dirUsr,
+                '--install-extension', $ext, '--force') `
+                -Wait -PassThru -WindowStyle Hidden
+        if ($r.ExitCode -eq 0) { $feitas++ } else { [void]$falhas.Add($ext) }
+    }
+
+    $recado = ("{0}: {1} instalada(s)" -f $cat.nome, $feitas)
+    if ($falhas.Count -gt 0) { $recado += ("; falharam: " + ($falhas -join ', ')) }
+    Write-Progresso -Id $Categoria -Etapa 'pronto' -Porcento 100 -Detalhe $recado -Fim
+    return @{ ok = $true; nome = $cat.nome; instaladas = $feitas; falhas = @($falhas) }
+}
+
+
+# ------------------------------------------------------------------
 # Servidores de banco de dados
 # ------------------------------------------------------------------
 
@@ -1092,6 +1191,7 @@ function Start-Servidor {
                         raiz        = $PSScriptRoot
                         geradoEm    = (Get-Date).ToString('s')
                         ferramentas = (Get-Status -Catalogo $atual)
+                        extensoes   = (Get-CategoriasExtensoes -Catalogo $atual)
                         links       = $atual.linksExternos
                     }
                     Send-Texto $contexto 200 'application/json; charset=utf-8' ($pacote | ConvertTo-Json -Depth 6)
@@ -1169,6 +1269,29 @@ function Start-Servidor {
                         $texto = '{"etapa":"erro","fim":true,"erro":"A instalacao terminou sem concluir. Veja a janela do servidor."}'
                     }
                     Send-Texto $contexto 200 'application/json; charset=utf-8' $texto
+                }
+            }
+            elseif ($caminho -eq '/api/extensoes') {
+                if ($chaveEnviada -ne $chave) {
+                    Send-Texto $contexto 403 'text/plain; charset=utf-8' 'chave invalida'
+                }
+                elseif ($contexto.Request.HttpMethod -ne 'POST') {
+                    Send-Texto $contexto 405 'text/plain; charset=utf-8' 'use POST'
+                }
+                elseif ($null -ne $ajudante -and -not $ajudante.HasExited) {
+                    Send-Texto $contexto 409 'application/json; charset=utf-8' '{"ok":false,"erro":"Ja existe uma instalacao em andamento."}'
+                }
+                else {
+                    $qual = $contexto.Request.QueryString['categoria']
+                    if (Test-Path -LiteralPath $ArquivoProgresso) {
+                        Remove-Item -LiteralPath $ArquivoProgresso -Force -ErrorAction SilentlyContinue
+                    }
+                    $script = Join-Path $PSScriptRoot 'devapp.ps1'
+                    $ajudante = Start-Process powershell `
+                        -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $script, '-Acao', 'extensoes', '-Id', $qual `
+                        -WindowStyle Hidden -PassThru
+                    Write-Host ("  Instalando extensoes da categoria {0} (processo {1})" -f $qual, $ajudante.Id)
+                    Send-Texto $contexto 200 'application/json; charset=utf-8' (@{ ok = $true; categoria = $qual } | ConvertTo-Json -Compress)
                 }
             }
             elseif ($caminho -eq '/api/banco/iniciar' -or $caminho -eq '/api/banco/parar') {
@@ -1275,6 +1398,22 @@ switch ($Acao) {
 
     'servir' {
         Start-Servidor -Porta $Porta -NaoAbrir:$NaoAbrir
+    }
+
+    'extensoes' {
+        if ([string]::IsNullOrWhiteSpace($Id)) {
+            Write-Host ''
+            foreach ($c in (Get-CategoriasExtensoes -Catalogo $catalogo)) {
+                Write-Host ('  {0,-12} {1,-38} {2,2} de {3,2} instaladas' -f $c.Id, $c.Nome, $c.Instaladas, $c.Total)
+            }
+            Write-Host ''
+        }
+        else {
+            Write-Host ''
+            $r = Install-Extensoes -Catalogo $catalogo -Categoria $Id
+            if (-not $r.ok) { Write-Host ('  Falhou: {0}' -f $r.erro) }
+            Write-Host ''
+        }
     }
 
     'bancos' {
