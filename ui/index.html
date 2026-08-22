@@ -648,6 +648,7 @@
     if (f.Inferida)      avisos.push('detecção inferida');
     if (!f.Implementada) avisos.push('sem rotina');
     if (f.PerfilUsuario) avisos.push('escreve no seu perfil');
+    if (f.Aviso)         avisos.push(f.Aviso);
 
     // Dependências que ainda faltam: instalar esta ferramenta puxa elas junto.
     const pendentes = faltaAntes(f);

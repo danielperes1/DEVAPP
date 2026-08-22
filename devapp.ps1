@@ -191,6 +191,7 @@ function Get-Status {
             Detectar     = $f.detectar
             Executar     = $f.executar
             Servidor     = $f.servidor
+            Aviso        = $f.aviso
             Rodando      = $rodando
             Pid          = $numeroProcesso
             PerfilUsuario = $f.perfilUsuario

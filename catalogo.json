@@ -8,7 +8,8 @@
       "portatil": "false = a instalacao mexe fora da pasta do DEVAPP (registro, Adicionar/Remover Programas, etc).",
       "perfilUsuario": "Onde a ferramenta escreveria FORA do DEVAPP se nada fosse feito. Documenta o comportamento padrao dela, nao um problema em aberto.",
       "redirecionadoPor": "O que traz esses caminhos para dentro do DEVAPP. Sem este campo, o vazamento continua.",
-      "redirecionamentoMedido": "true = comprovado rodando a ferramenta e conferindo que o perfil do usuario nao cresceu. \"parcial\" = o volume foi redirecionado, mas sobra algum arquivo pequeno de preferencia do usuario."
+      "redirecionamentoMedido": "true = comprovado rodando a ferramenta e conferindo que o perfil do usuario nao cresceu. \"parcial\" = o volume foi redirecionado, mas sobra algum arquivo pequeno de preferencia do usuario.",
+      "aviso": "Frase curta mostrada no proprio cartao, para limitacoes que o usuario precisa saber ANTES de instalar."
     }
   },
   "ambiente": {
@@ -1070,6 +1071,34 @@
       ],
       "redirecionamentoMedido": false,
       "notas": "O zip ja traz a pasta go na raiz, entao extrai direto sem renomear."
+    },
+    {
+      "id": "tortoisegit",
+      "nome": "TortoiseGit",
+      "versao": "2.17.0.0",
+      "categoria": "Controle de versao",
+      "requer": [
+        "git"
+      ],
+      "download": {
+        "url": "https://download.tortoisegit.org/tgit/2.17.0.0/TortoiseGit-2.17.0.0-64bit.msi",
+        "arquivo": "TortoiseGit-2.17.0.0-64bit.msi"
+      },
+      "instalacao": {
+        "tipo": "msi-admin",
+        "destino": "tortoisegit",
+        "limparAntes": true
+      },
+      "detectar": "tortoisegit/Program Files/TortoiseGit/bin/TortoiseGitProc.exe",
+      "detectarInferido": false,
+      "executar": "\"tortoisegit/Program Files/TortoiseGit/bin/TortoiseGitMerge.exe\"",
+      "env": {
+        "TORTOISEGIT_HOME": "tortoisegit"
+      },
+      "path": [],
+      "portatil": true,
+      "aviso": "sem menu do botao direito",
+      "notas": "ATENCAO: o TortoiseGit e uma extensao do Explorer do Windows, e o menu do botao direito -- que e a razao de as pessoas o instalarem -- exige registrar TortoiseGitStub.dll no sistema, o que precisa de instalacao com administrador e sai da pasta do DEVAPP. Aqui ele entra por extracao administrativa, sem registrar nada, entao SO as ferramentas avulsas funcionam: TortoiseGitMerge (comparar e resolver conflitos), TortoiseGitBlame (ver autoria linha a linha) e TortoiseGitIDiff (comparar imagens). O botao Executar abre o Merge. Dica: o TortoiseGitMerge se configura como difftool e mergetool do Git, e ai substitui bem o menu de contexto pela linha de comando."
     }
   ],
   "linksExternos": [
